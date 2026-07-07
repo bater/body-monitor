@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "body-monitor-db",
-      "database_id": "placeholder-set-after-d1-create",
+      "database_id": "8a86c63c-3224-4fbd-95f2-0e1155e8f47f",
       "migrations_dir": "migrations"
     }
   ],
