@@ -86,6 +86,16 @@ workout.delete("/:id", async (c) => {
   return c.json({ ok: true });
 });
 
+// Most recent entry for an exercise — used to prefill the logging form
+workout.get("/last/:exerciseId", async (c) => {
+  const row = await c.env.DB.prepare(
+    "SELECT weight_kg, reps, sets FROM workout_entries WHERE exercise_id = ? ORDER BY date DESC, id DESC LIMIT 1"
+  )
+    .bind(c.req.param("exerciseId"))
+    .first();
+  return c.json(row ?? null);
+});
+
 // Per-exercise history for the progression chart: best (heaviest) set per day
 workout.get("/progression/:exerciseId", async (c) => {
   const { results } = await c.env.DB.prepare(

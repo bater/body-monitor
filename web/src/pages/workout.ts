@@ -15,8 +15,7 @@ export function renderWorkout(page: HTMLElement) {
     },
   });
 
-  const exSelect = h("select", {});
-  const progSelect = h("select", { onchange: () => void refreshProgression() });
+  const exSelect = h("select", { onchange: () => void onExerciseChange() });
   const weightInput = h("input", { type: "number", step: "0.5", min: "0", placeholder: "60" });
   const repsInput = h("input", { type: "number", step: "1", min: "1", placeholder: "8" });
   const setsInput = h("input", { type: "number", step: "1", min: "1", placeholder: "3" });
@@ -29,18 +28,36 @@ export function renderWorkout(page: HTMLElement) {
       if (!groups.has(g)) groups.set(g, []);
       groups.get(g)!.push(ex);
     }
-    for (const sel of [exSelect, progSelect]) {
-      const prev = sel.value;
-      sel.replaceChildren(
-        ...[...groups.entries()].map(([g, list]) =>
-          h(
-            "optgroup",
-            { label: g },
-            ...list.map((ex) => h("option", { value: ex.id }, ex.name))
-          ) as unknown as HTMLElement
-        )
-      );
-      if (prev && exercises.some((e) => String(e.id) === prev)) sel.value = prev;
+    const prev = exSelect.value;
+    exSelect.replaceChildren(
+      ...[...groups.entries()].map(([g, list]) =>
+        h(
+          "optgroup",
+          { label: g },
+          ...list.map((ex) => h("option", { value: ex.id }, ex.name))
+        ) as unknown as HTMLElement
+      )
+    );
+    if (prev && exercises.some((e) => String(e.id) === prev)) exSelect.value = prev;
+  }
+
+  // On exercise change: prefill last session's numbers and show its progression inline
+  async function onExerciseChange() {
+    if (!exSelect.value) return;
+    const [last] = await Promise.all([
+      api.get<{ weight_kg: number; reps: number; sets: number } | null>(
+        `/api/workouts/last/${exSelect.value}`
+      ),
+      refreshProgression(),
+    ]);
+    if (last) {
+      weightInput.value = String(last.weight_kg);
+      repsInput.value = String(last.reps);
+      setsInput.value = String(last.sets);
+    } else {
+      weightInput.value = "";
+      repsInput.value = "";
+      setsInput.value = "";
     }
   }
 
@@ -60,6 +77,7 @@ export function renderWorkout(page: HTMLElement) {
       });
       await loadExercises();
       exSelect.value = String(res.id);
+      void onExerciseChange();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : "新增失敗");
     }
@@ -80,9 +98,6 @@ export function renderWorkout(page: HTMLElement) {
         note: noteInput.value.trim() || null,
       });
       toast("已記錄");
-      weightInput.value = "";
-      repsInput.value = "";
-      setsInput.value = "";
       noteInput.value = "";
       void refreshList();
       void refreshProgression();
@@ -132,16 +147,21 @@ export function renderWorkout(page: HTMLElement) {
     );
   }
 
-  const progChart = h("div");
+  const progBox = h("div");
   async function refreshProgression() {
-    if (!progSelect.value) return;
+    if (!exSelect.value) return;
     const rows = await api.get<{ date: string; weight_kg: number }[]>(
-      `/api/workouts/progression/${progSelect.value}`
+      `/api/workouts/progression/${exSelect.value}`
     );
-    progChart.replaceChildren(
+    if (rows.length === 0) {
+      progBox.replaceChildren();
+      return;
+    }
+    progBox.replaceChildren(
+      h("div", { class: "eyebrow", style: "margin-top:14px" }, "動作進步曲線（單日最重 KG）"),
       lineChart(
         rows.map((r) => ({ x: r.date, y: r.weight_kg })),
-        { unit: "kg" }
+        { unit: "kg", height: 120 }
       )
     );
   }
@@ -166,20 +186,14 @@ export function renderWorkout(page: HTMLElement) {
         h("label", { class: "field" }, h("span", {}, "組數"), setsInput)
       ),
       h("label", { class: "field" }, h("span", {}, "備註"), noteInput),
-      h("button", { class: "btn primary", style: "width:100%", onclick: () => void saveEntry() }, "新增紀錄")
+      h("button", { class: "btn primary", style: "width:100%", onclick: () => void saveEntry() }, "新增紀錄"),
+      progBox
     ),
-    listBox,
-    h(
-      "div",
-      { class: "card" },
-      h("div", { class: "eyebrow" }, "動作進步曲線（單日最重 KG）"),
-      progSelect,
-      h("div", { style: "margin-top:10px" }, progChart)
-    )
+    listBox
   );
 
   void (async () => {
     await loadExercises();
-    await Promise.all([refreshList(), refreshProgression()]);
+    await Promise.all([refreshList(), onExerciseChange()]);
   })().catch((e) => toast(e instanceof ApiError ? e.message : "載入失敗"));
 }
