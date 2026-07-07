@@ -1,0 +1,12 @@
+{
+  "name": "體態日誌",
+  "short_name": "體態日誌",
+  "description": "個人蛋白質、訓練與 InBody 紀錄",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F2F4F1",
+  "theme_color": "#F2F4F1",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
