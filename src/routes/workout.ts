@@ -5,7 +5,9 @@ const workout = new Hono<AppContext>();
 
 workout.get("/exercises", async (c) => {
   const { results } = await c.env.DB.prepare(
-    "SELECT * FROM exercises ORDER BY muscle_group, name"
+    `SELECT e.*, COUNT(w.id) AS entry_count
+     FROM exercises e LEFT JOIN workout_entries w ON w.exercise_id = e.id
+     GROUP BY e.id ORDER BY e.muscle_group, e.name`
   ).all();
   return c.json(results);
 });
@@ -23,6 +25,32 @@ workout.post("/exercises", async (c) => {
     .bind(name.trim(), muscle_group ?? null)
     .run();
   return c.json({ id: res.meta.last_row_id }, 201);
+});
+
+workout.put("/exercises/:id", async (c) => {
+  const { name, muscle_group } = await c.req.json<{ name?: string; muscle_group?: string | null }>();
+  if (!name?.trim()) return c.json({ error: "缺少動作名稱" }, 400);
+  const dup = await c.env.DB.prepare("SELECT id FROM exercises WHERE name = ? AND id != ?")
+    .bind(name.trim(), c.req.param("id"))
+    .first();
+  if (dup) return c.json({ error: "已有同名動作" }, 409);
+  await c.env.DB.prepare("UPDATE exercises SET name = ?, muscle_group = ? WHERE id = ?")
+    .bind(name.trim(), muscle_group?.trim() || null, c.req.param("id"))
+    .run();
+  return c.json({ ok: true });
+});
+
+workout.delete("/exercises/:id", async (c) => {
+  const used = await c.env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM workout_entries WHERE exercise_id = ?"
+  )
+    .bind(c.req.param("id"))
+    .first<{ n: number }>();
+  if (used && used.n > 0) {
+    return c.json({ error: `此動作已有 ${used.n} 筆訓練紀錄，無法刪除` }, 409);
+  }
+  await c.env.DB.prepare("DELETE FROM exercises WHERE id = ?").bind(c.req.param("id")).run();
+  return c.json({ ok: true });
 });
 
 workout.get("/", async (c) => {

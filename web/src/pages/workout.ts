@@ -176,7 +176,8 @@ export function renderWorkout(page: HTMLElement) {
         "div",
         { class: "btn-row", style: "margin-bottom:10px" },
         h("span", { class: "grow" }, exSelect),
-        h("button", { class: "btn", onclick: () => void addExercise() }, "＋動作")
+        h("button", { class: "btn", onclick: () => void addExercise() }, "＋動作"),
+        h("a", { class: "btn", href: "#/exercises", style: "text-decoration:none" }, "動作庫")
       ),
       h(
         "div",

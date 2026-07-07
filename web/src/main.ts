@@ -2,6 +2,7 @@ import "./style.css";
 import { renderDashboard } from "./pages/dashboard";
 import { renderFood } from "./pages/food";
 import { renderWorkout } from "./pages/workout";
+import { renderExercises } from "./pages/exercises";
 import { renderInBody } from "./pages/inbody";
 import { renderSettings } from "./pages/settings";
 
@@ -9,6 +10,7 @@ const routes: Record<string, (page: HTMLElement) => void> = {
   "": renderDashboard,
   food: renderFood,
   workout: renderWorkout,
+  exercises: renderExercises,
   inbody: renderInBody,
   settings: renderSettings,
 };
@@ -23,8 +25,10 @@ function render() {
   const view = routes[route] ?? renderDashboard;
   window.scrollTo(0, 0);
   view(page);
+  // routes without their own tab highlight the closest one
+  const tabRoute = route === "exercises" ? "workout" : route in routes ? route : "";
   document.querySelectorAll<HTMLAnchorElement>("#tabbar a").forEach((a) => {
-    a.classList.toggle("active", a.dataset.route === (route in routes ? route : ""));
+    a.classList.toggle("active", a.dataset.route === tabRoute);
   });
 }
 
