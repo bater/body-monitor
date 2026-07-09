@@ -28,9 +28,9 @@ food.get("/", async (c) => {
   const to = c.req.query("to") ?? from;
   if (!from) return c.json({ error: "缺少 from 參數" }, 400);
   const { results } = await c.env.DB.prepare(
-    "SELECT * FROM food_logs WHERE date BETWEEN ? AND ? ORDER BY date DESC, id DESC"
+    "SELECT * FROM food_logs WHERE user_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC, id DESC"
   )
-    .bind(from, to)
+    .bind(c.get("userId"), from, to)
     .all();
   return c.json(results.map((r) => ({ ...r, items: JSON.parse(r.items_json as string) })));
 });
@@ -42,30 +42,31 @@ food.post("/", async (c) => {
   }
   const t = totals(body.items);
   const res = await c.env.DB.prepare(
-    "INSERT INTO food_logs (date, raw_text, items_json, protein_g, calories) VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO food_logs (user_id, date, raw_text, items_json, protein_g, calories) VALUES (?, ?, ?, ?, ?, ?)"
   )
-    .bind(body.date, body.raw_text ?? "", JSON.stringify(body.items), t.protein_g, t.calories)
+    .bind(c.get("userId"), body.date, body.raw_text ?? "", JSON.stringify(body.items), t.protein_g, t.calories)
     .run();
   return c.json({ id: res.meta.last_row_id, ...t }, 201);
 });
 
 food.put("/:id", async (c) => {
-  const id = c.req.param("id");
   const body = await c.req.json<{ date?: string; items?: FoodItem[] }>();
   if (!body.date || !Array.isArray(body.items) || body.items.length === 0) {
     return c.json({ error: "缺少 date 或 items" }, 400);
   }
   const t = totals(body.items);
   await c.env.DB.prepare(
-    "UPDATE food_logs SET date = ?, items_json = ?, protein_g = ?, calories = ? WHERE id = ?"
+    "UPDATE food_logs SET date = ?, items_json = ?, protein_g = ?, calories = ? WHERE id = ? AND user_id = ?"
   )
-    .bind(body.date, JSON.stringify(body.items), t.protein_g, t.calories, id)
+    .bind(body.date, JSON.stringify(body.items), t.protein_g, t.calories, c.req.param("id"), c.get("userId"))
     .run();
   return c.json({ ok: true, ...t });
 });
 
 food.delete("/:id", async (c) => {
-  await c.env.DB.prepare("DELETE FROM food_logs WHERE id = ?").bind(c.req.param("id")).run();
+  await c.env.DB.prepare("DELETE FROM food_logs WHERE id = ? AND user_id = ?")
+    .bind(c.req.param("id"), c.get("userId"))
+    .run();
   return c.json({ ok: true });
 });
 

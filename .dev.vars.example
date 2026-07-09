@@ -8,3 +8,7 @@ MISTRAL_API_KEY=
 # OpenRouter (https://openrouter.ai/keys) — any model with vision support
 OPENROUTER_API_KEY=
 # OPENROUTER_MODEL=google/gemini-2.5-flash
+
+# Local identity (wrangler dev has no Cloudflare Access in front).
+# Switch the value to simulate different users.
+DEV_USER_EMAIL=bater.chen@frontier.cool

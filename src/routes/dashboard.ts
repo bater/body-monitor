@@ -7,30 +7,37 @@ const dashboard = new Hono<AppContext>();
 dashboard.get("/", async (c) => {
   const date = c.req.query("date");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? "")) return c.json({ error: "缺少 date 參數" }, 400);
+  const uid = c.get("userId");
 
   const [protein, target, lastWorkoutDate, inbodyTrend] = await Promise.all([
     c.env.DB.prepare(
-      "SELECT COALESCE(SUM(protein_g),0) AS protein_g, COALESCE(SUM(calories),0) AS calories, COUNT(*) AS entries FROM food_logs WHERE date = ?"
+      "SELECT COALESCE(SUM(protein_g),0) AS protein_g, COALESCE(SUM(calories),0) AS calories, COUNT(*) AS entries FROM food_logs WHERE user_id = ? AND date = ?"
     )
-      .bind(date)
+      .bind(uid, date)
       .first<{ protein_g: number; calories: number; entries: number }>(),
-    c.env.DB.prepare("SELECT value FROM settings WHERE key = 'protein_target_g'").first<{
-      value: string;
-    }>(),
-    c.env.DB.prepare("SELECT MAX(date) AS d FROM workout_entries").first<{ d: string | null }>(),
+    c.env.DB.prepare(
+      "SELECT value FROM user_settings WHERE user_id = ? AND key = 'protein_target_g'"
+    )
+      .bind(uid)
+      .first<{ value: string }>(),
+    c.env.DB.prepare("SELECT MAX(date) AS d FROM workout_entries WHERE user_id = ?")
+      .bind(uid)
+      .first<{ d: string | null }>(),
     c.env.DB.prepare(
       `SELECT date, weight_kg, skeletal_muscle_mass_kg, body_fat_percent
-       FROM inbody_records ORDER BY date DESC, id DESC LIMIT 12`
-    ).all(),
+       FROM inbody_records WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT 12`
+    )
+      .bind(uid)
+      .all(),
   ]);
 
   let lastWorkout: { date: string; entries: unknown[] } | null = null;
   if (lastWorkoutDate?.d) {
     const { results } = await c.env.DB.prepare(
       `SELECT w.*, e.name AS exercise_name FROM workout_entries w
-       JOIN exercises e ON e.id = w.exercise_id WHERE w.date = ? ORDER BY w.id`
+       JOIN exercises e ON e.id = w.exercise_id WHERE w.user_id = ? AND w.date = ? ORDER BY w.id`
     )
-      .bind(lastWorkoutDate.d)
+      .bind(uid, lastWorkoutDate.d)
       .all();
     lastWorkout = { date: lastWorkoutDate.d, entries: results };
   }

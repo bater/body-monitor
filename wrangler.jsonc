@@ -23,6 +23,15 @@
       "bucket_name": "body-monitor-photos"
     }
   ],
+  "vars": {
+    // Cloudflare Access identity: team domain + this app's Audience tag.
+    // Until ACCESS_AUD is filled in, the Worker trusts the email header Access
+    // injects at the edge; with it set, the signed JWT is fully verified.
+    "ACCESS_TEAM_DOMAIN": "rough-sea-d78c.cloudflareaccess.com",
+    "ACCESS_AUD": "",
+    // First login among these emails adopts all pre-multi-user data
+    "OWNER_EMAILS": "bater.chen@frontier.cool,baterme@gmail.com"
+  },
   "observability": {
     "enabled": true
   }

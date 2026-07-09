@@ -5,10 +5,11 @@ export function renderSettings(page: HTMLElement) {
   page.replaceChildren(h("div", { class: "empty" }, "載入中…"));
 
   void (async () => {
-    const [settings, health, records] = await Promise.all([
+    const [settings, health, records, me] = await Promise.all([
       api.get<Record<string, string>>("/api/settings"),
       api.get<{ ok: boolean; ai: boolean; ai_provider: string | null }>("/api/health"),
       api.get<InBodyRecord[]>("/api/inbody?limit=1"),
+      api.get<{ email: string; name: string }>("/api/me"),
     ]);
 
     const targetInput = h("input", {
@@ -24,6 +25,21 @@ export function renderSettings(page: HTMLElement) {
       : "記錄一筆 InBody 後，這裡會依體重建議每日目標";
 
     page.replaceChildren(
+      h(
+        "div",
+        { class: "card" },
+        h("div", { class: "eyebrow" }, "登入身分"),
+        h(
+          "div",
+          { class: "row", style: "display:flex;align-items:baseline;gap:8px" },
+          h("span", { class: "grow", style: "flex:1" }, me.email),
+          h(
+            "a",
+            { href: "/cdn-cgi/access/logout", class: "btn small", style: "text-decoration:none" },
+            "登出"
+          )
+        )
+      ),
       h(
         "div",
         { class: "card" },

@@ -22,7 +22,7 @@ inbody.post("/ocr", async (c) => {
 
   const buf = await file.arrayBuffer();
   const ext = (file.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
-  const photoKey = `inbody/${crypto.randomUUID()}.${ext}`;
+  const photoKey = `inbody/u${c.get("userId")}/${crypto.randomUUID()}.${ext}`;
   await c.env.PHOTOS.put(photoKey, buf, { httpMetadata: { contentType: file.type } });
 
   // base64-encode in chunks to avoid call-stack limits on large photos
@@ -48,9 +48,9 @@ inbody.post("/ocr", async (c) => {
 inbody.get("/", async (c) => {
   const limit = Number(c.req.query("limit") ?? 100);
   const { results } = await c.env.DB.prepare(
-    "SELECT * FROM inbody_records ORDER BY date DESC, id DESC LIMIT ?"
+    "SELECT * FROM inbody_records WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT ?"
   )
-    .bind(limit)
+    .bind(c.get("userId"), limit)
     .all();
   return c.json(results);
 });
@@ -63,11 +63,12 @@ inbody.post("/", async (c) => {
     : "manual";
   const res = await c.env.DB.prepare(
     `INSERT INTO inbody_records
-       (date, weight_kg, skeletal_muscle_mass_kg, body_fat_percent, body_fat_mass_kg,
+       (user_id, date, weight_kg, skeletal_muscle_mass_kg, body_fat_percent, body_fat_mass_kg,
         bmi, visceral_fat_level, bmr_kcal, source, photo_key, raw_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
     .bind(
+      c.get("userId"),
       b.date,
       b.weight_kg,
       b.skeletal_muscle_mass_kg ?? null,
@@ -88,26 +89,32 @@ inbody.put("/:id", async (c) => {
   const b = await c.req.json<Record<string, unknown>>();
   if (!b.date || b.weight_kg == null) return c.json({ error: "缺少 date 或 weight_kg" }, 400);
   const sets = FIELDS.map((f) => `${f} = ?`).join(", ");
-  await c.env.DB.prepare(`UPDATE inbody_records SET date = ?, ${sets} WHERE id = ?`)
-    .bind(b.date, ...FIELDS.map((f) => b[f] ?? null), c.req.param("id"))
+  await c.env.DB.prepare(
+    `UPDATE inbody_records SET date = ?, ${sets} WHERE id = ? AND user_id = ?`
+  )
+    .bind(b.date, ...FIELDS.map((f) => b[f] ?? null), c.req.param("id"), c.get("userId"))
     .run();
   return c.json({ ok: true });
 });
 
 inbody.delete("/:id", async (c) => {
-  const row = await c.env.DB.prepare("SELECT photo_key FROM inbody_records WHERE id = ?")
-    .bind(c.req.param("id"))
+  const row = await c.env.DB.prepare(
+    "SELECT photo_key FROM inbody_records WHERE id = ? AND user_id = ?"
+  )
+    .bind(c.req.param("id"), c.get("userId"))
     .first<{ photo_key: string | null }>();
   if (row?.photo_key) await c.env.PHOTOS.delete(row.photo_key);
-  await c.env.DB.prepare("DELETE FROM inbody_records WHERE id = ?")
-    .bind(c.req.param("id"))
+  await c.env.DB.prepare("DELETE FROM inbody_records WHERE id = ? AND user_id = ?")
+    .bind(c.req.param("id"), c.get("userId"))
     .run();
   return c.json({ ok: true });
 });
 
 inbody.get("/photo/:id", async (c) => {
-  const row = await c.env.DB.prepare("SELECT photo_key FROM inbody_records WHERE id = ?")
-    .bind(c.req.param("id"))
+  const row = await c.env.DB.prepare(
+    "SELECT photo_key FROM inbody_records WHERE id = ? AND user_id = ?"
+  )
+    .bind(c.req.param("id"), c.get("userId"))
     .first<{ photo_key: string | null }>();
   if (!row?.photo_key) return c.json({ error: "無照片" }, 404);
   const obj = await c.env.PHOTOS.get(row.photo_key);
