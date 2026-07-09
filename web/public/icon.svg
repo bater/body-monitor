@@ -1,7 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#1B2733"/>
-  <g stroke="#F2F4F1" stroke-width="30" stroke-linecap="round" fill="none">
-    <path d="M150 150v212M362 150v212M88 196v120M424 196v120M150 256h212"/>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#232F3D"/>
+      <stop offset="1" stop-color="#161F29"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- steam as heartbeat pulse -->
+  <polyline points="164,186 216,186 240,140 272,222 300,158 314,186 348,186"
+            fill="none" stroke="#E06A5E" stroke-width="20"
+            stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- barbell resting across the bowl like chopsticks -->
+  <g transform="rotate(-5 256 282)">
+    <line x1="66" y1="282" x2="446" y2="282" stroke="#F2F4F1" stroke-width="20" stroke-linecap="round"/>
+    <rect x="94" y="234" width="34" height="96" rx="13" fill="#E06A5E"/>
+    <rect x="384" y="234" width="34" height="96" rx="13" fill="#E06A5E"/>
   </g>
-  <path d="M120 404h80l24-40 32 64 28-48h108" stroke="#E06A5E" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- rice bowl -->
+  <path d="M100 316 A156 118 0 0 0 412 316 Z" fill="#F2F4F1"/>
+  <rect x="214" y="430" width="84" height="22" rx="9" fill="#F2F4F1"/>
 </svg>
