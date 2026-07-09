@@ -28,7 +28,7 @@
     // Until ACCESS_AUD is filled in, the Worker trusts the email header Access
     // injects at the edge; with it set, the signed JWT is fully verified.
     "ACCESS_TEAM_DOMAIN": "rough-sea-d78c.cloudflareaccess.com",
-    "ACCESS_AUD": "",
+    "ACCESS_AUD": "38e649fc5079be2e8cd24382856a40541021b03b00d68ccebf61fdfefc1f1d92",
     // First login among these emails adopts all pre-multi-user data
     "OWNER_EMAILS": "bater.chen@frontier.cool,baterme@gmail.com"
   },
