@@ -21,9 +21,25 @@ app.route("/api/workouts", workout);
 app.route("/api/inbody", inbody);
 app.route("/api/dashboard", dashboard);
 
-app.get("/api/me", (c) =>
-  c.json({ email: c.get("userEmail"), name: c.get("userName") })
-);
+app.get("/api/me", (c) => {
+  const me: Record<string, unknown> = { email: c.get("userEmail"), name: c.get("userName") };
+  // until ACCESS_AUD is configured, surface the aud claim from the incoming
+  // Access JWT so it can be copied into wrangler.jsonc
+  if (!c.env.ACCESS_AUD) {
+    const token = c.req.header("Cf-Access-Jwt-Assertion");
+    if (token) {
+      try {
+        const payload = JSON.parse(
+          atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))
+        ) as { aud?: string | string[] };
+        me.access_aud_hint = Array.isArray(payload.aud) ? payload.aud[0] : payload.aud;
+      } catch {
+        // ignore — hint only
+      }
+    }
+  }
+  return c.json(me);
+});
 
 app.get("/api/settings", async (c) => {
   const { results } = await c.env.DB.prepare(
