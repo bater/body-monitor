@@ -42,7 +42,7 @@ async function chatJson<T>(env: Env, content: ContentPart[]): Promise<T> {
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${provider.apiKey}`,
-      ...(provider.name === "openrouter" ? { "x-title": "body-monitor" } : {}),
+      ...(provider.name === "openrouter" ? { "x-title": "Body Buddy" } : {}),
     },
     body: JSON.stringify({
       model: provider.model,

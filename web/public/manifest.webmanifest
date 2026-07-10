@@ -1,6 +1,6 @@
 {
-  "name": "體態日誌",
-  "short_name": "體態日誌",
+  "name": "Body Buddy",
+  "short_name": "Body Buddy",
   "description": "個人蛋白質、訓練與 InBody 紀錄",
   "start_url": "/",
   "display": "standalone",

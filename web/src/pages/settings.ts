@@ -189,7 +189,7 @@ export function renderSettings(page: HTMLElement) {
         "div",
         { class: "card" },
         h("div", { class: "eyebrow" }, "關於"),
-        h("p", { class: "muted small" }, "體態日誌 — 資料存於 Cloudflare D1，照片存於 R2，由 Cloudflare Access 保護。")
+        h("p", { class: "muted small" }, "Body Buddy — 資料存於 Cloudflare D1，照片存於 R2，由 Cloudflare Access 保護。")
       )
     );
   })().catch((e) => {

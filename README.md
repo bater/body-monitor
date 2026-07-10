@@ -1,8 +1,8 @@
-# 體態日誌 Body Monitor
+# Body Buddy
 
-Single-user personal health tracker: daily 蛋白質/food intake, workout records
-(weight × reps × sets), and InBody body-composition trends. 繁體中文 mobile-first
-PWA, runs entirely on the Cloudflare free tier.
+Personal health tracker for family & friends (invite-only): daily 蛋白質/food
+intake, workout records (weight × reps × sets), and InBody body-composition
+trends. 繁體中文 mobile-first PWA, runs entirely on the Cloudflare free tier.
 
 - **Stack**: Cloudflare Worker (Hono + TypeScript) serving a vanilla-TS Vite frontend, D1 (SQLite), R2 for InBody report photos
 - **AI**: free-text food parsing and InBody photo OCR via an OpenAI-compatible client — Mistral free tier (`mistral-small-latest`) or OpenRouter (any vision model). Everything degrades to manual entry when no key is set.
