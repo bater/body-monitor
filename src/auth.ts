@@ -87,28 +87,34 @@ async function verifyAccessJwt(env: Env, token: string): Promise<string | null> 
 
 // ---------- User provisioning ----------
 
-async function getOrCreateUser(
-  env: Env,
-  email: string
-): Promise<{ id: number; email: string; name: string }> {
-  const existing = await env.DB.prepare("SELECT id, email, name FROM users WHERE email = ?")
+type User = { id: number; email: string; name: string; is_admin: number };
+
+async function getUser(env: Env, email: string): Promise<User | null> {
+  return env.DB.prepare("SELECT id, email, name, is_admin FROM users WHERE email = ?")
     .bind(email)
-    .first<{ id: number; email: string; name: string }>();
+    .first<User>();
+}
+
+/** Create a user account with seeded defaults (and owner data-claim if applicable). */
+export async function provisionUser(env: Env, email: string): Promise<User> {
+  const existing = await getUser(env, email);
   if (existing) return existing;
 
-  const name = email.split("@")[0];
-  const res = await env.DB.prepare("INSERT INTO users (email, name) VALUES (?, ?)")
-    .bind(email, name)
-    .run();
-  const id = res.meta.last_row_id as number;
-
-  // Owner's first login adopts all pre-multi-user data (rows with user_id NULL)
   const owners = (env.OWNER_EMAILS ?? "")
     .toLowerCase()
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (owners.includes(email)) {
+  const isOwner = owners.includes(email);
+
+  const name = email.split("@")[0];
+  const res = await env.DB.prepare("INSERT INTO users (email, name, is_admin) VALUES (?, ?, ?)")
+    .bind(email, name, isOwner ? 1 : 0)
+    .run();
+  const id = res.meta.last_row_id as number;
+
+  // Owner's first login adopts all pre-multi-user data (rows with user_id NULL)
+  if (isOwner) {
     await env.DB.batch([
       env.DB.prepare("UPDATE food_logs SET user_id = ? WHERE user_id IS NULL").bind(id),
       env.DB.prepare("UPDATE workout_entries SET user_id = ? WHERE user_id IS NULL").bind(id),
@@ -136,7 +142,7 @@ async function getOrCreateUser(
     .bind(id)
     .run();
 
-  return { id, email, name };
+  return { id, email, name, is_admin: isOwner ? 1 : 0 };
 }
 
 // ---------- Middleware ----------
@@ -158,9 +164,40 @@ export async function authMiddleware(c: Context<AppContext>, next: Next) {
 
   if (!email) return c.json({ error: "未通過身分驗證，請重新登入" }, 401);
 
-  const user = await getOrCreateUser(env, email);
+  let user = await getUser(env, email);
+  if (!user) {
+    const owners = (env.OWNER_EMAILS ?? "")
+      .toLowerCase()
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (owners.includes(email)) {
+      user = await provisionUser(env, email);
+    } else if (c.req.method === "POST" && c.req.path === "/api/invite/redeem") {
+      // authenticated but not yet a member — only the redeem endpoint may proceed
+      c.set("userId", 0);
+      c.set("userEmail", email);
+      c.set("userName", email);
+      c.set("isAdmin", false);
+      await next();
+      return;
+    } else {
+      return c.json(
+        {
+          error: "此帳號尚未受邀",
+          code: "invite_required",
+          logout_url: env.ACCESS_TEAM_DOMAIN
+            ? `https://${env.ACCESS_TEAM_DOMAIN}/cdn-cgi/access/logout`
+            : null,
+        },
+        403
+      );
+    }
+  }
+
   c.set("userId", user.id);
   c.set("userEmail", user.email);
   c.set("userName", user.name ?? user.email);
+  c.set("isAdmin", user.is_admin === 1);
   await next();
 }

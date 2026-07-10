@@ -16,5 +16,5 @@ export type Env = {
 
 export type AppContext = {
   Bindings: Env;
-  Variables: { userId: number; userEmail: string; userName: string };
+  Variables: { userId: number; userEmail: string; userName: string; isAdmin: boolean };
 };

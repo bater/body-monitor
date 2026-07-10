@@ -6,6 +6,7 @@ import food from "./routes/food";
 import workout from "./routes/workout";
 import inbody from "./routes/inbody";
 import dashboard from "./routes/dashboard";
+import invite from "./routes/invite";
 
 const app = new Hono<AppContext>();
 
@@ -20,11 +21,13 @@ app.route("/api/food", food);
 app.route("/api/workouts", workout);
 app.route("/api/inbody", inbody);
 app.route("/api/dashboard", dashboard);
+app.route("/api/invite", invite);
 
 app.get("/api/me", (c) => {
   const me: Record<string, unknown> = {
     email: c.get("userEmail"),
     name: c.get("userName"),
+    is_admin: c.get("isAdmin"),
     // Access logout only works on the team domain, not the app host
     logout_url: c.env.ACCESS_TEAM_DOMAIN
       ? `https://${c.env.ACCESS_TEAM_DOMAIN}/cdn-cgi/access/logout`
