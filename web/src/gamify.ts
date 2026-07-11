@@ -4,13 +4,17 @@ import { h, fmt } from "./ui";
 // level-band titles, Duolingo-style; last entry ≤ level wins
 const LEVEL_TITLES: [number, string][] = [
   [1, "初心者"],
-  [3, "便當戰士"],
+  [3, "蛋白質小子"],
   [5, "蛋白質學徒"],
   [8, "增肌行者"],
   [12, "健體老手"],
   [16, "鋼鐵廚神"],
   [20, "傳說體魄"],
 ];
+
+export function levelTitle(level: number): string {
+  return LEVEL_TITLES.filter(([lv]) => level >= lv).pop()![1];
+}
 
 /** Compact streak + level card shared by the dashboard and food pages. */
 export function gamifyCard(g: Gamify): HTMLElement {
@@ -21,7 +25,7 @@ export function gamifyCard(g: Gamify): HTMLElement {
       : !g.today.target_met
         ? `連勝保住 ✓ 再 ${fmt(g.today.target_g - g.today.protein_g)} g 達標`
         : "今日全達成 ✓";
-  const title = LEVEL_TITLES.filter(([lv]) => g.level >= lv).pop()![1];
+  const title = levelTitle(g.level);
   const xpPct = Math.min(1, (g.xp - g.level_start_xp) / (g.next_level_xp - g.level_start_xp));
   return h(
     "div",

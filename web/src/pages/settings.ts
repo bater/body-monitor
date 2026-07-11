@@ -1,5 +1,6 @@
-import { api, ApiError, type InBodyRecord } from "../api";
-import { h, toast, fmt, fmtDateShort } from "../ui";
+import { api, ApiError, type Gamify, type InBodyRecord, type JourneyEntry } from "../api";
+import { h, toast, fmt, fmtDateShort, todayStr } from "../ui";
+import { levelTitle } from "../gamify";
 
 type Invite = {
   id: number;
@@ -110,11 +111,12 @@ export function renderSettings(page: HTMLElement) {
   page.replaceChildren(h("div", { class: "empty" }, "載入中…"));
 
   void (async () => {
-    const [settings, health, records, me] = await Promise.all([
+    const [settings, health, records, me, growth] = await Promise.all([
       api.get<Record<string, string>>("/api/settings"),
       api.get<{ ok: boolean; ai: boolean; ai_provider: string | null }>("/api/health"),
       api.get<InBodyRecord[]>("/api/inbody?limit=1"),
       api.get<{ email: string; name: string; is_admin: boolean; logout_url: string | null }>("/api/me"),
+      api.get<{ current: Gamify; journey: JourneyEntry[] }>(`/api/gamify/journey?date=${todayStr()}`),
     ]);
 
     const targetInput = h("input", {
@@ -190,6 +192,41 @@ export function renderSettings(page: HTMLElement) {
           },
           "儲存"
         )
+      ),
+      h(
+        "div",
+        { class: "card" },
+        h("div", { class: "eyebrow" }, "成長日誌 JOURNEY"),
+        h(
+          "div",
+          { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" },
+          h("span", { class: "level-badge num" }, `Lv ${growth.current.level}`),
+          h("span", {}, levelTitle(growth.current.level)),
+          h(
+            "span",
+            { class: "muted small num", style: "flex:1;text-align:right" },
+            `🔥 ${growth.current.streak_days} 天 ・ 累積 ${growth.current.xp} XP`
+          )
+        ),
+        growth.journey.length === 0
+          ? h("div", { class: "empty" }, "開始記錄飲食後，這裡會寫下你的成長軌跡")
+          : h(
+              "div",
+              {},
+              ...[...growth.journey].reverse().map((e) =>
+                h(
+                  "div",
+                  { class: "entry", style: "display:flex;gap:10px;align-items:baseline" },
+                  h("span", { class: "num muted small", style: "min-width:40px" }, fmtDateShort(e.date)),
+                  h(
+                    "span",
+                    { style: "flex:1" },
+                    e.level === 1 ? "🌱 開始記錄，旅程展開" : `⬆️ 升上 Lv ${e.level}・${levelTitle(e.level)}`
+                  ),
+                  e.level === 1 ? "" : h("span", { class: "muted small num" }, `${e.xp} XP`)
+                )
+              )
+            )
       ),
       h(
         "div",

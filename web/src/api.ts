@@ -92,6 +92,7 @@ export type Gamify = {
     target_met: boolean;
   };
 };
+export type JourneyEntry = { date: string; level: number; xp: number };
 export type Dashboard = {
   date: string;
   protein_g: number;

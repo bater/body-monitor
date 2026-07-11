@@ -18,6 +18,8 @@ export type Gamify = {
   };
 };
 
+export type JourneyEntry = { date: string; level: number; xp: number };
+
 const XP_LOG_DAY = 10; // day with ≥1 food log
 const XP_MIN_DAY = 10; // day protein ≥ 最低 (keeps the streak)
 const XP_TARGET_DAY = 20; // day protein ≥ 目標 (on top of the min award)
@@ -59,6 +61,95 @@ export async function proteinSettings(
   return { targetG, minG };
 }
 
+type Raw = {
+  foodDays: { date: string; protein: number | null }[];
+  workoutDates: string[];
+  inbodyDates: string[];
+};
+
+async function loadRaw(db: D1Database, userId: number): Promise<Raw> {
+  const [foodDays, workoutDates, inbodyDates] = await Promise.all([
+    db
+      .prepare("SELECT date, SUM(protein_g) AS protein FROM food_logs WHERE user_id = ? GROUP BY date")
+      .bind(userId)
+      .all<{ date: string; protein: number | null }>(),
+    db.prepare("SELECT DISTINCT date FROM workout_entries WHERE user_id = ?").bind(userId).all<{ date: string }>(),
+    db.prepare("SELECT date FROM inbody_records WHERE user_id = ?").bind(userId).all<{ date: string }>(),
+  ]);
+  return {
+    foodDays: foodDays.results,
+    workoutDates: workoutDates.results.map((r) => r.date),
+    inbodyDates: inbodyDates.results.map((r) => r.date),
+  };
+}
+
+/** XP earned per date, plus the sorted qualifying (streak-keeping) dates. */
+function xpByDate(raw: Raw, targetG: number, minG: number): { byDate: Map<string, number>; qualifying: string[] } {
+  const byDate = new Map<string, number>();
+  const add = (d: string, v: number) => byDate.set(d, (byDate.get(d) ?? 0) + v);
+
+  const qualifying: string[] = [];
+  for (const row of raw.foodDays) {
+    const p = row.protein ?? 0;
+    add(row.date, XP_LOG_DAY);
+    if (p >= minG) {
+      add(row.date, XP_MIN_DAY);
+      qualifying.push(row.date);
+    }
+    if (p >= targetG) add(row.date, XP_TARGET_DAY);
+  }
+  for (const d of raw.workoutDates) add(d, XP_WORKOUT_DAY);
+  for (const d of raw.inbodyDates) add(d, XP_INBODY);
+
+  // weekly streak bonus lands on the day that completes each 7-day block
+  qualifying.sort(); // ISO dates sort chronologically
+  let runLen = 0;
+  let prev = NaN;
+  for (const d of qualifying) {
+    const n = dayNum(d);
+    runLen = n === prev + 1 ? runLen + 1 : 1;
+    prev = n;
+    if (runLen % 7 === 0) add(d, XP_STREAK_WEEK);
+  }
+  return { byDate, qualifying };
+}
+
+/** Length of the qualifying run reaching today — or yesterday, since an
+ * unfinished today shouldn't break the chain (Duolingo behavior). */
+function currentStreak(qualifying: string[], date: string): number {
+  const todayN = dayNum(date);
+  let streak = 0;
+  let runLen = 0;
+  let prev = NaN;
+  for (const d of qualifying) {
+    const n = dayNum(d);
+    runLen = n === prev + 1 ? runLen + 1 : 1;
+    prev = n;
+    if (n === todayN || n === todayN - 1) streak = runLen;
+  }
+  return streak;
+}
+
+function buildGamify(raw: Raw, byDate: Map<string, number>, qualifying: string[], date: string, targetG: number, minG: number): Gamify {
+  let xp = 0;
+  for (const v of byDate.values()) xp += v;
+  const todayRow = raw.foodDays.find((r) => r.date === date);
+  const todayProtein = todayRow?.protein ?? 0;
+  return {
+    streak_days: currentStreak(qualifying, date),
+    xp,
+    ...levelFromXp(xp),
+    today: {
+      logged: Boolean(todayRow),
+      protein_g: todayProtein,
+      min_g: minG,
+      target_g: targetG,
+      min_met: Boolean(todayRow) && todayProtein >= minG,
+      target_met: Boolean(todayRow) && todayProtein >= targetG,
+    },
+  };
+}
+
 export async function computeGamify(
   db: D1Database,
   userId: number,
@@ -66,61 +157,34 @@ export async function computeGamify(
   targetG: number,
   minG: number
 ): Promise<Gamify> {
-  const [foodDays, workoutDays, inbody] = await Promise.all([
-    db
-      .prepare("SELECT date, SUM(protein_g) AS protein FROM food_logs WHERE user_id = ? GROUP BY date")
-      .bind(userId)
-      .all<{ date: string; protein: number | null }>(),
-    db
-      .prepare("SELECT COUNT(DISTINCT date) AS n FROM workout_entries WHERE user_id = ?")
-      .bind(userId)
-      .first<{ n: number }>(),
-    db.prepare("SELECT COUNT(*) AS n FROM inbody_records WHERE user_id = ?").bind(userId).first<{ n: number }>(),
-  ]);
+  const raw = await loadRaw(db, userId);
+  const { byDate, qualifying } = xpByDate(raw, targetG, minG);
+  return buildGamify(raw, byDate, qualifying, date, targetG, minG);
+}
 
-  let xp = (workoutDays?.n ?? 0) * XP_WORKOUT_DAY + (inbody?.n ?? 0) * XP_INBODY;
+/** Replay XP chronologically to date each level-up; entry 1 is the first-ever record day. */
+export async function computeJourney(
+  db: D1Database,
+  userId: number,
+  date: string,
+  targetG: number,
+  minG: number
+): Promise<{ current: Gamify; journey: JourneyEntry[] }> {
+  const raw = await loadRaw(db, userId);
+  const { byDate, qualifying } = xpByDate(raw, targetG, minG);
 
-  const qualifying: number[] = [];
-  let todayProtein = 0;
-  let todayLogged = false;
-  for (const row of foodDays.results) {
-    const p = row.protein ?? 0;
-    xp += XP_LOG_DAY;
-    if (p >= minG) {
-      xp += XP_MIN_DAY;
-      qualifying.push(dayNum(row.date));
-    }
-    if (p >= targetG) xp += XP_TARGET_DAY;
-    if (row.date === date) {
-      todayLogged = true;
-      todayProtein = p;
+  const journey: JourneyEntry[] = [];
+  const dates = [...byDate.keys()].sort();
+  if (dates.length > 0) journey.push({ date: dates[0], level: 1, xp: 0 });
+  let cum = 0;
+  let level = 1;
+  for (const d of dates) {
+    cum += byDate.get(d)!;
+    while ((100 * level * (level + 1)) / 2 <= cum) {
+      level++;
+      journey.push({ date: d, level, xp: cum });
     }
   }
 
-  // Walk qualifying days in order, tracking consecutive runs. The current
-  // streak is the run reaching today — or yesterday, since an unfinished
-  // today shouldn't break the chain (Duolingo behavior).
-  qualifying.sort((a, b) => a - b);
-  const todayN = dayNum(date);
-  let streak = 0;
-  let runLen = 0;
-  for (let i = 0; i < qualifying.length; i++) {
-    runLen = i > 0 && qualifying[i] === qualifying[i - 1] + 1 ? runLen + 1 : 1;
-    if (runLen % 7 === 0) xp += XP_STREAK_WEEK;
-    if (qualifying[i] === todayN || qualifying[i] === todayN - 1) streak = runLen;
-  }
-
-  return {
-    streak_days: streak,
-    xp,
-    ...levelFromXp(xp),
-    today: {
-      logged: todayLogged,
-      protein_g: todayProtein,
-      min_g: minG,
-      target_g: targetG,
-      min_met: todayLogged && todayProtein >= minG,
-      target_met: todayLogged && todayProtein >= targetG,
-    },
-  };
+  return { current: buildGamify(raw, byDate, qualifying, date, targetG, minG), journey };
 }
