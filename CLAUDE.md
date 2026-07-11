@@ -17,6 +17,15 @@ D1 migrations, then deploys. Do not run `npm run deploy` manually. Worker
 secrets (`MISTRAL_API_KEY`/`OPENROUTER_API_KEY`, `VAPID_PRIVATE_KEY`) are set
 once via `wrangler secret put` and survive deploys.
 
+## Versioning & changelog
+
+App version is `v0.0.x`, bumped once per shipped **milestone** (main feature),
+not per commit. When shipping one, update all three together:
+`CHANGELOG.md` (detailed English entry), `package.json` `version`, and
+`web/src/version.ts` (`APP_VERSION` + a short 繁中 `VERSION_HISTORY` entry —
+this drives the in-app 關於 page). Also refresh the README Features section
+if the feature is user-visible.
+
 ## Architecture decisions (non-obvious)
 
 - **Dates**: the client always passes its local `date=YYYY-MM-DD` to the API;

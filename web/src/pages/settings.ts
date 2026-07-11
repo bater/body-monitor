@@ -1,6 +1,7 @@
 import { api, ApiError, type Gamify, type InBodyRecord, type JourneyEntry } from "../api";
 import { h, toast, fmt, fmtDateShort, todayStr } from "../ui";
 import { levelTitle } from "../gamify";
+import { APP_VERSION } from "../version";
 
 const MEAL_TOGGLES: { key: string; label: string; time: string }[] = [
   { key: "reminder_breakfast", label: "早餐", time: "09:30" },
@@ -339,7 +340,16 @@ export function renderSettings(page: HTMLElement) {
               "🔧 管理後台 →"
             ),
           ]
-        : [])
+        : []),
+      h(
+        "a",
+        {
+          href: "#/about",
+          class: "muted small",
+          style: "display:block;text-align:center;text-decoration:none;padding:8px",
+        },
+        `ℹ️ 關於 Body Buddy　v${APP_VERSION}`
+      )
     );
   })().catch((e) => {
     page.replaceChildren(h("div", { class: "empty" }, e instanceof ApiError ? e.message : "載入失敗"));

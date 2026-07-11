@@ -4,6 +4,32 @@ Personal health tracker for family & friends (invite-only): daily 蛋白質/food
 intake, workout records (weight × reps × sets), and InBody body-composition
 trends. 繁體中文 mobile-first PWA, runs entirely on the Cloudflare free tier.
 
+## Features (v0.0.7)
+
+Eight core features — no install, no ads, your data stays yours:
+
+1. **🍱 AI food logging** — type「雞胸肉一份＋豆漿」and AI parses it into
+   items, protein and calories; always degrades gracefully to manual entry
+2. **🏋️ Workout tracking** — weight × reps × sets, a 動作庫 exercise library
+   grouped by muscle, per-exercise progression charts and a full history page
+3. **📷 InBody photo import** — snap the report sheet and OCR fills weight,
+   skeletal muscle and body fat automatically
+4. **📈 Trend charts** — protein, calories, weight, muscle and body-fat
+   trends at a glance (hand-rolled SVG, zero chart dependencies)
+5. **🎮 Gamification** — Duolingo-style XP, levels, a 🔥 protein streak and a
+   成長日誌 journey that replays every level-up
+6. **🔔 Smart meal reminders** — Web Push at 09:30/13:30/19:30 Taipei that
+   only nags when you haven't logged, and goes silent once the day qualifies
+7. **🤖 AI coach** — feedback at the moments that matter (targets hit,
+   personal records) in three tones: 友善／嚴格／專業
+8. **👨‍👩‍👧‍👦 Invite-only multi-user** — Cloudflare Access at the edge,
+   single-use invite links, fully isolated per-user data
+
+Version history lives in [CHANGELOG.md](CHANGELOG.md) and the in-app 關於
+page (設定 → 關於 Body Buddy).
+
+## Tech notes
+
 - **Stack**: Cloudflare Worker (Hono + TypeScript) serving a vanilla-TS Vite frontend, D1 (SQLite), R2 for InBody report photos
 - **AI**: free-text food parsing and InBody photo OCR via an OpenAI-compatible client — Mistral free tier (`mistral-small-latest`) or OpenRouter (any vision model). Everything degrades to manual entry when no key is set.
 - **Auth**: none in-app — Cloudflare Access (Zero Trust) authenticates at the edge; the app authorizes via invite-gated onboarding (admins mint single-use, 7-day invite links from the hidden `#/admin` area).

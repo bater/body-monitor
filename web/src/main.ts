@@ -8,6 +8,7 @@ import { renderInBody } from "./pages/inbody";
 import { renderExercises } from "./pages/exercises";
 import { renderExerciseDetail } from "./pages/exercise-detail";
 import { renderSettings } from "./pages/settings";
+import { renderAbout } from "./pages/about";
 import { renderAdmin } from "./pages/admin";
 
 const routes: Record<string, (page: HTMLElement) => void> = {
@@ -18,6 +19,7 @@ const routes: Record<string, (page: HTMLElement) => void> = {
   exercises: renderExercises,
   exercise: renderExerciseDetail,
   settings: renderSettings,
+  about: renderAbout,
   admin: renderAdmin,
 };
 
@@ -32,7 +34,14 @@ function render() {
   window.scrollTo(0, 0);
   view(page);
   // routes without their own tab highlight the closest one
-  const tabRoute = route === "exercises" || route === "exercise" ? "workout" : route in routes ? route : "";
+  const tabRoute =
+    route === "exercises" || route === "exercise"
+      ? "workout"
+      : route === "about"
+        ? "settings"
+        : route in routes
+          ? route
+          : "";
   document.querySelectorAll<HTMLAnchorElement>("#tabbar a").forEach((a) => {
     a.classList.toggle("active", a.dataset.route === tabRoute);
   });
