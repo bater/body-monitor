@@ -1,11 +1,16 @@
 // Keep in sync with package.json version and CHANGELOG.md (see CHANGELOG.md
 // header for the bump-on-milestone process). This file drives the 關於 page.
-export const APP_VERSION = "0.0.8";
+export const APP_VERSION = "0.0.9";
 
 export type VersionEntry = { version: string; date: string; highlights: string[] };
 
 // newest first
 export const VERSION_HISTORY: VersionEntry[] = [
+  {
+    version: "0.0.9",
+    date: "2026-07-11",
+    highlights: ["訓練頁顯示上次訓練時間", "太久沒練時教練依風格提醒你（3／5／10 天三級）"],
+  },
   {
     version: "0.0.8",
     date: "2026-07-11",

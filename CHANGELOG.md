@@ -5,6 +5,15 @@ When shipping a main feature: add an entry here, bump `version` in
 `package.json`, and mirror a short 繁中 summary in `web/src/version.ts`
 (`APP_VERSION` + `VERSION_HISTORY`), which drives the in-app 關於 page.
 
+## v0.0.9 — 2026-07-11
+
+- Workout page now leads with a "上次訓練" line showing how long ago you last
+  trained (今天 / 昨天 / N 天前 + the date), backed by a new
+  `GET /api/workouts/latest` endpoint (MAX training date across all exercises)
+- Rest reminder: after 3 idle days the coach nudges you to train again, with
+  escalating copy at 3 / 5 / 10 days. Static messages (no AI call) written in
+  the user's selected coach tone 友善 / 嚴格 / 專業, styled like coach feedback
+
 ## v0.0.8 — 2026-07-11
 
 - Public landing page at `/welcome` (no login) with a waiting-list signup —

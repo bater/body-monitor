@@ -4,14 +4,16 @@ Personal health tracker for family & friends (invite-only): daily 蛋白質/food
 intake, workout records (weight × reps × sets), and InBody body-composition
 trends. 繁體中文 mobile-first PWA, runs entirely on the Cloudflare free tier.
 
-## Features (v0.0.8)
+## Features (v0.0.9)
 
 Seven core features — no install, no ads, your data stays yours:
 
 1. **🍱 AI food logging** — type「雞胸肉一份＋豆漿」and AI parses it into
    items, protein and calories; always degrades gracefully to manual entry
 2. **🏋️ Workout tracking** — weight × reps × sets, a 動作庫 exercise library
-   grouped by muscle, per-exercise progression charts and a full history page
+   grouped by muscle, per-exercise progression charts and a full history page;
+   the page shows your last-workout gap and nudges you (in the coach's tone)
+   after 3 idle days
 3. **📷 InBody photo import** — snap the report sheet and OCR fills weight,
    skeletal muscle and body fat automatically
 4. **📈 Trend charts** — protein, calories, weight, muscle and body-fat

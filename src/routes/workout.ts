@@ -104,6 +104,17 @@ workout.get("/progression/:exerciseId", async (c) => {
   return c.json(results);
 });
 
+// Most recent training day across all exercises — drives the "days since last
+// workout" nudge on the workout page. Returns null when nothing is logged yet.
+workout.get("/latest", async (c) => {
+  const row = await c.env.DB.prepare(
+    "SELECT MAX(date) AS date FROM workout_entries WHERE user_id = ?"
+  )
+    .bind(c.get("userId"))
+    .first<{ date: string | null }>();
+  return c.json({ date: row?.date ?? null });
+});
+
 workout.get("/", async (c) => {
   const from = c.req.query("from");
   const to = c.req.query("to") ?? from;
