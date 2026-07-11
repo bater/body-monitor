@@ -178,7 +178,10 @@ export async function computeJourney(
 
   const journey: JourneyEntry[] = [];
   const dates = [...byDate.keys()].sort();
-  if (dates.length > 0) journey.push({ date: dates[0], level: 1, xp: 0 });
+  // 🌱 marks the first FOOD log — the habit anchor — not the earliest
+  // XP-earning activity (a backdated workout/InBody would start it too early)
+  const firstFood = raw.foodDays.map((r) => r.date).sort()[0];
+  if (firstFood) journey.push({ date: firstFood, level: 1, xp: 0 });
   let cum = 0;
   let level = 1;
   for (const d of dates) {
