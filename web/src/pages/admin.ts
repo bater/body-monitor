@@ -5,8 +5,7 @@ type Invite = {
   id: number;
   created_at: string;
   expires_at: string;
-  used_by_email: string | null;
-  status: "active" | "used" | "expired";
+  status: "active" | "expired";
 };
 
 type Person = {
@@ -27,7 +26,7 @@ function statusBadge(p: Person): HTMLElement {
     return h(
       "span",
       { class: "small", style: "color:var(--good)" },
-      "已加入",
+      `已加入 ${p.created_at?.slice(0, 10) ?? ""}`,
       p.is_admin ? h("span", { class: "muted" }, "・管理員") : ""
     );
   }
@@ -208,8 +207,13 @@ function inviteCard(): HTMLElement {
 
   async function refresh() {
     const invites = await api.get<Invite[]>("/api/invite");
-    const label = { active: "未使用", used: "已使用", expired: "已過期" } as const;
+    const label = { active: "未使用", expired: "已過期" } as const;
     listBox.replaceChildren(
+      invites.length === 0
+        ? h("div", { class: "empty" }, "沒有未使用的連結")
+        : h(
+      "div",
+      {},
       ...invites.map((inv) =>
         h(
           "div",
@@ -225,8 +229,7 @@ function inviteCard(): HTMLElement {
             h(
               "span",
               { class: "small", style: inv.status === "active" ? "color:var(--good)" : "color:var(--ink-3)" },
-              label[inv.status],
-              inv.used_by_email ? `：${inv.used_by_email}` : ""
+              label[inv.status]
             ),
             inv.status === "active"
               ? h(
@@ -246,6 +249,7 @@ function inviteCard(): HTMLElement {
           )
         )
       )
+        )
     );
   }
 

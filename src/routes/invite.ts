@@ -58,18 +58,18 @@ invite.post("/", async (c) => {
   return c.json({ link }, 201);
 });
 
-// Standalone "shareable link" invites only — invites tied to a waiting-list
-// entry are represented by that person's row in /people instead, so listing
-// them here too would double-count.
+// Outstanding standalone "shareable link" invites only. Two exclusions avoid
+// double-counting against the /people list: (1) a *used* invite means its
+// redeemer is now a member and already shows there as 'active'; (2) invites
+// tied to a waiting-list entry are represented by that person's row.
 invite.get("/", async (c) => {
   if (!requireAdmin(c)) return c.json({ error: "僅管理員" }, 403);
   const { results } = await c.env.DB.prepare(
-    `SELECT i.id, i.created_at, i.expires_at, i.used_at, u.email AS used_by_email,
-            CASE WHEN i.used_at IS NOT NULL THEN 'used'
-                 WHEN i.expires_at <= datetime('now') THEN 'expired'
-                 ELSE 'active' END AS status
-     FROM invites i LEFT JOIN users u ON u.id = i.used_by
-     WHERE i.id NOT IN (SELECT invite_id FROM waitlist WHERE invite_id IS NOT NULL)
+    `SELECT i.id, i.created_at, i.expires_at,
+            CASE WHEN i.expires_at <= datetime('now') THEN 'expired' ELSE 'active' END AS status
+     FROM invites i
+     WHERE i.used_at IS NULL
+       AND i.id NOT IN (SELECT invite_id FROM waitlist WHERE invite_id IS NOT NULL)
      ORDER BY i.id DESC`
   ).all();
   return c.json(results);
