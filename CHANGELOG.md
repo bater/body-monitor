@@ -5,6 +5,19 @@ When shipping a main feature: add an entry here, bump `version` in
 `package.json`, and mirror a short 繁中 summary in `web/src/version.ts`
 (`APP_VERSION` + `VERSION_HISTORY`), which drives the in-app 關於 page.
 
+## v0.0.8 — 2026-07-11
+
+- Public landing page at `/welcome` (no login) with a waiting-list signup —
+  strangers leave their email; served self-contained by the Worker so it needs
+  no Access-protected assets
+- Admin 候補名單 in `#/admin`: review signups, send an invite with one tap,
+  or remove an entry
+- Invite emails via personal Gmail SMTP (smtp.gmail.com:465 over Cloudflare
+  TCP sockets, App Password auth) — degrades to a copyable invite link when
+  `GMAIL_APP_PASSWORD` is unset or a send fails
+- **Requires** a Cloudflare Access **Bypass** policy for `/welcome` and
+  `POST /api/waitlist` so logged-out visitors can reach them (see README)
+
 ## v0.0.7 — 2026-07-11
 
 - AI coach (教練回饋): feedback on notable saves — targets hit, personal

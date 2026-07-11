@@ -10,7 +10,9 @@ import workout from "./routes/workout";
 import inbody from "./routes/inbody";
 import dashboard from "./routes/dashboard";
 import invite from "./routes/invite";
+import waitlist from "./routes/waitlist";
 import coach from "./routes/coach";
+import { renderLanding } from "./landing";
 
 const app = new Hono<AppContext>();
 
@@ -19,7 +21,12 @@ app.onError((err, c) => {
   return c.json({ error: "伺服器錯誤，請稍後再試" }, 500);
 });
 
+// ---- Public surface (bypass these paths in Cloudflare Access) ----
+// Logged-out visitors reach the landing page and the waitlist signup only.
+app.get("/welcome", (c) => c.html(renderLanding()));
+
 app.use("/api/*", authMiddleware);
+app.route("/api/waitlist", waitlist);
 
 app.route("/api/food", food);
 app.route("/api/workouts", workout);

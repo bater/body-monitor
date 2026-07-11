@@ -16,6 +16,9 @@ export type Env = {
   VAPID_PUBLIC_KEY?: string; // vars — public by design
   VAPID_PRIVATE_KEY?: string; // secret
   VAPID_SUBJECT?: string; // mailto: contact for push services
+  // Gmail SMTP for invitation emails (sending is a no-op until both are set)
+  GMAIL_USER?: string; // the sending Gmail address (var)
+  GMAIL_APP_PASSWORD?: string; // 16-char Gmail App Password (secret)
 };
 
 export type AppContext = {

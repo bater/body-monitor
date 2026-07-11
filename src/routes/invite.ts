@@ -1,8 +1,29 @@
 import { Hono } from "hono";
-import type { AppContext } from "../env";
+import type { AppContext, Env } from "../env";
 import { provisionUser } from "../auth";
+import { sendInviteEmail } from "../email";
 
 const invite = new Hono<AppContext>();
+
+// Create a single-use, 7-day invite; returns the token + its shareable link.
+async function createInvite(
+  env: Env,
+  adminId: number,
+  origin: string
+): Promise<{ id: number; token: string; link: string }> {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const token = btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  const res = await env.DB.prepare(
+    "INSERT INTO invites (token, created_by, expires_at) VALUES (?, ?, datetime('now', '+7 days'))"
+  )
+    .bind(token, adminId)
+    .run();
+  return { id: res.meta.last_row_id as number, token, link: `${origin}/?invite=${token}` };
+}
 
 // Redeem is reachable by authenticated-but-not-yet-member visitors (see auth.ts)
 invite.post("/redeem", async (c) => {
@@ -33,19 +54,8 @@ function requireAdmin(c: { get: (k: "isAdmin") => boolean }) {
 
 invite.post("/", async (c) => {
   if (!requireAdmin(c)) return c.json({ error: "僅管理員可建立邀請" }, 403);
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  const token = btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-  await c.env.DB.prepare(
-    "INSERT INTO invites (token, created_by, expires_at) VALUES (?, ?, datetime('now', '+7 days'))"
-  )
-    .bind(token, c.get("userId"))
-    .run();
-  const origin = new URL(c.req.url).origin;
-  return c.json({ link: `${origin}/?invite=${token}` }, 201);
+  const { link } = await createInvite(c.env, c.get("userId"), new URL(c.req.url).origin);
+  return c.json({ link }, 201);
 });
 
 invite.get("/", async (c) => {
@@ -67,6 +77,57 @@ invite.delete("/:id", async (c) => {
     .bind(c.req.param("id"))
     .run();
   if (res.meta.changes !== 1) return c.json({ error: "已使用的邀請無法撤銷" }, 400);
+  return c.json({ ok: true });
+});
+
+// ---- waiting list (admin) ----
+
+invite.get("/waitlist", async (c) => {
+  if (!requireAdmin(c)) return c.json({ error: "僅管理員" }, 403);
+  const { results } = await c.env.DB.prepare(
+    `SELECT w.id, w.email, w.note, w.created_at, w.status, w.invited_at,
+            EXISTS(SELECT 1 FROM users u WHERE u.email = w.email) AS is_member
+     FROM waitlist w ORDER BY w.status = 'invited', w.id DESC`
+  ).all();
+  return c.json(results);
+});
+
+invite.post("/waitlist/:id/invite", async (c) => {
+  if (!requireAdmin(c)) return c.json({ error: "僅管理員" }, 403);
+  const entry = await c.env.DB.prepare("SELECT id, email FROM waitlist WHERE id = ?")
+    .bind(c.req.param("id"))
+    .first<{ id: number; email: string }>();
+  if (!entry) return c.json({ error: "找不到這筆候補" }, 404);
+
+  const { id: inviteId, link } = await createInvite(
+    c.env,
+    c.get("userId"),
+    new URL(c.req.url).origin
+  );
+
+  // Email is best-effort: a send failure (or unconfigured SMTP) still records the
+  // invite so the admin can copy the link manually.
+  let emailed = false;
+  let emailError: string | null = null;
+  try {
+    emailed = await sendInviteEmail(c.env, entry.email, link);
+  } catch (e) {
+    emailError = e instanceof Error ? e.message : "寄信失敗";
+    console.error("invite email", e);
+  }
+
+  await c.env.DB.prepare(
+    "UPDATE waitlist SET status = 'invited', invited_at = datetime('now'), invite_id = ? WHERE id = ?"
+  )
+    .bind(inviteId, entry.id)
+    .run();
+
+  return c.json({ ok: true, link, emailed, email_error: emailError });
+});
+
+invite.delete("/waitlist/:id", async (c) => {
+  if (!requireAdmin(c)) return c.json({ error: "僅管理員" }, 403);
+  await c.env.DB.prepare("DELETE FROM waitlist WHERE id = ?").bind(c.req.param("id")).run();
   return c.json({ ok: true });
 });
 

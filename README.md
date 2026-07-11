@@ -59,6 +59,31 @@ Then in [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) create an Acce
 application for the `workers.dev` domain. Any policy that authenticates real
 identities works — membership is enforced in-app by invite links.
 
+### Public landing page (waiting list)
+
+`/welcome` is a public marketing page with a waiting-list form; logged-out
+visitors submit an email (`POST /api/waitlist`), and admins invite them from
+`#/admin`. Because Access sits in front of the whole app, these two paths must
+be **bypassed** or they'll hit the login screen. In Zero Trust → Access →
+Applications, add an application (higher precedence than the main one) covering
+`…workers.dev/welcome` and `…workers.dev/api/waitlist` with a single **Bypass**
+policy (Include: Everyone). The app itself stays protected. Share `/welcome` as
+the public link; the app entry at `/` still requires login.
+
+### Invite emails (Gmail SMTP)
+
+Admins send invites from the 候補名單 straight to the applicant's inbox via a
+personal Gmail account:
+
+- `GMAIL_USER` (the sending address) is in `wrangler.jsonc` `vars`
+- generate a [Gmail App Password](https://myaccount.google.com/apppasswords)
+  (needs 2-Step Verification), then `npx wrangler secret put GMAIL_APP_PASSWORD`
+
+Sending is a safe no-op until the secret exists — the invite is still created
+and the admin UI shows a copyable link to send by hand. Delivery uses
+`smtp.gmail.com:465` over Cloudflare TCP sockets (port 25 is blocked; 465 is
+not), so no third-party email service is required.
+
 ### Web Push (meal reminders)
 
 Generate a VAPID keypair (any standard tool, e.g. `npx web-push generate-vapid-keys`),
@@ -92,4 +117,5 @@ Pushes to `main` typecheck, test, apply D1 migrations, and deploy via
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → Workers & Pages → Account ID |
 
 Worker secrets survive deploys and are set once via `wrangler secret put`:
-`MISTRAL_API_KEY` / `OPENROUTER_API_KEY` (AI) and `VAPID_PRIVATE_KEY` (push).
+`MISTRAL_API_KEY` / `OPENROUTER_API_KEY` (AI), `VAPID_PRIVATE_KEY` (push), and
+`GMAIL_APP_PASSWORD` (invite emails).

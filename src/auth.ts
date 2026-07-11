@@ -149,6 +149,11 @@ export async function provisionUser(env: Env, email: string): Promise<User> {
 
 export async function authMiddleware(c: Context<AppContext>, next: Next) {
   const env = c.env;
+
+  // Public, Access-bypassed endpoint: waiting-list signup from the landing page.
+  // No identity required; must run even with no Access JWT present.
+  if (c.req.method === "POST" && c.req.path === "/api/waitlist") return next();
+
   let email: string | null = null;
 
   if (env.DEV_USER_EMAIL) {

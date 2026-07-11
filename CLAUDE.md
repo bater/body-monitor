@@ -43,6 +43,18 @@ if the feature is user-visible.
 - **Auth**: Cloudflare Access authenticates (JWT verified in `src/auth.ts`);
   the app authorizes — membership comes from invite links (`#/admin`, admin
   only, APIs 403 server-side). `OWNER_EMAILS` claims data + admin on first login.
+- **Public surface**: Access guards the whole app at the edge, so the two
+  public paths — `GET /welcome` (self-contained landing HTML in `src/landing.ts`,
+  no dependency on protected assets) and `POST /api/waitlist` — only work if
+  they're **Bypass**ed in an Access application (see README). `authMiddleware`
+  early-returns for `POST /api/waitlist`; `/welcome` is in wrangler
+  `run_worker_first` so the Worker (not the SPA fallback) serves it. Admin
+  waitlist management lives in the `invite` router (already admin-gated).
+- **Invite email** (`src/email.ts`): raw SMTP to `smtp.gmail.com:465` over
+  `cloudflare:sockets` (implicit TLS, `AUTH LOGIN` with a Gmail App Password;
+  port 25 is blocked, 465 isn't). No deps. Sending is a no-op when
+  `GMAIL_APP_PASSWORD` is unset and best-effort otherwise — a failure still
+  records the invite and the admin UI falls back to a copyable link.
 - **Web Push**: subscriptions per device in `push_subscriptions`; cron
   `30 1,5,11 * * *` UTC = 09:30/13:30/19:30 Taipei meal checks. Push is a
   silent no-op when `VAPID_PRIVATE_KEY` is unset. iOS requires the installed

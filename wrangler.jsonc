@@ -9,7 +9,8 @@
     "directory": "web/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    // /welcome is the public landing page rendered by the Worker (bypass it in Access)
+    "run_worker_first": ["/api/*", "/welcome"]
   },
   "d1_databases": [
     {
@@ -35,7 +36,9 @@
     "OWNER_EMAILS": "bater.coder@gmail.com",
     // Web Push VAPID public key (public by design; private half is a secret)
     "VAPID_PUBLIC_KEY": "BHoskjdvQb_YlMmpUd84Fp-o-FP0azDpUxYfagw8IlPEbtYjdRSjZx6k1YJIhjuH9d3HLXj2aqFSbaknRbPpEeY",
-    "VAPID_SUBJECT": "mailto:bater.coder@gmail.com"
+    "VAPID_SUBJECT": "mailto:bater.coder@gmail.com",
+    // Gmail address that sends invite emails (App Password is a secret, see below)
+    "GMAIL_USER": "bater.coder@gmail.com"
   },
   "triggers": {
     // Meal reminders in Asia/Taipei: 09:30 / 13:30 / 19:30 → 01:30 / 05:30 / 11:30 UTC
@@ -48,4 +51,6 @@
   //   MISTRAL_API_KEY      → uses api.mistral.ai, model MISTRAL_MODEL (default mistral-small-latest)
   //   OPENROUTER_API_KEY   → uses openrouter.ai, model OPENROUTER_MODEL (default google/gemini-2.5-flash)
   // Optional plain vars MISTRAL_MODEL / OPENROUTER_MODEL can go in a "vars" block here.
+  //   GMAIL_APP_PASSWORD   → 16-char Gmail App Password (needs 2FA); invite emails
+  //                          are a no-op until this is set. GMAIL_USER is above.
 }
