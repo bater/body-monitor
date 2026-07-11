@@ -123,6 +123,14 @@ export function renderSettings(page: HTMLElement) {
       min: "0",
       value: settings.protein_target_g ?? "120",
     });
+    const minInput = h("input", {
+      type: "number",
+      step: "5",
+      min: "0",
+      value:
+        settings.protein_min_g ??
+        String(Math.round(Number(settings.protein_target_g ?? "120") * 0.75)),
+    });
 
     const latest = records[0];
     const suggestion = latest
@@ -152,6 +160,12 @@ export function renderSettings(page: HTMLElement) {
         { class: "card" },
         h("div", { class: "eyebrow" }, "每日蛋白質目標"),
         h("label", { class: "field" }, h("span", {}, "目標 (g)"), targetInput),
+        h("label", { class: "field" }, h("span", {}, "最低 (g)"), minInput),
+        h(
+          "p",
+          { class: "muted small" },
+          "達到「最低」保住 🔥 連勝；達到「目標」拿滿當日 XP。"
+        ),
         h("p", { class: "muted small", style: "margin-bottom:10px" }, suggestion),
         h(
           "button",
@@ -160,9 +174,14 @@ export function renderSettings(page: HTMLElement) {
             style: "width:100%",
             onclick: async () => {
               const v = Number(targetInput.value);
+              const m = Number(minInput.value);
               if (!(v > 0)) return toast("請輸入有效目標");
+              if (!(m > 0) || m > v) return toast("最低需大於 0 且不高於目標");
               try {
-                await api.put("/api/settings", { protein_target_g: String(v) });
+                await api.put("/api/settings", {
+                  protein_target_g: String(v),
+                  protein_min_g: String(m),
+                });
                 toast("已更新目標");
               } catch (e) {
                 toast(e instanceof ApiError ? e.message : "儲存失敗");

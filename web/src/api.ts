@@ -77,12 +77,28 @@ export type InBodyRecord = {
   source: "photo" | "manual" | "import";
   photo_key: string | null;
 };
+export type Gamify = {
+  streak_days: number;
+  xp: number;
+  level: number;
+  level_start_xp: number;
+  next_level_xp: number;
+  today: {
+    logged: boolean;
+    protein_g: number;
+    min_g: number;
+    target_g: number;
+    min_met: boolean;
+    target_met: boolean;
+  };
+};
 export type Dashboard = {
   date: string;
   protein_g: number;
   calories: number;
   food_entries: number;
   protein_target_g: number;
+  gamify: Gamify;
   food_daily: FoodDaily[];
   inbody_trend: Pick<
     InBodyRecord,
