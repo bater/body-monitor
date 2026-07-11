@@ -122,6 +122,36 @@ function encodeSubject(subject: string): string {
   return `=?UTF-8?B?${b64}?=`;
 }
 
+// Where new-waitlist-signup notices go (the person who handles invites).
+export const WAITLIST_NOTIFY_TO = "bater.coder@gmail.com";
+
+/**
+ * Notify the admin that someone joined the waiting list, so they remember to
+ * handle it. Returns false when SMTP isn't configured (a no-op, like invites).
+ */
+export async function sendWaitlistNotice(
+  env: Env,
+  signup: { email: string; note?: string | null }
+): Promise<boolean> {
+  if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) return false;
+  const text = [
+    "有新的 Body Buddy 等候名單申請，記得去後台處理：",
+    "",
+    `Email：${signup.email}`,
+    `備註：${signup.note?.trim() || "（無）"}`,
+    "",
+    "到 #/admin 的等候名單發送邀請。",
+    "",
+    "— Body Buddy",
+  ].join("\n");
+  await sendMail(env, {
+    to: WAITLIST_NOTIFY_TO,
+    subject: `新等候名單申請：${signup.email}`,
+    text,
+  });
+  return true;
+}
+
 /** Compose + send the invitation email. Returns false when SMTP isn't configured. */
 export async function sendInviteEmail(env: Env, to: string, link: string): Promise<boolean> {
   if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) return false;

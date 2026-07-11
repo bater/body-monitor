@@ -58,6 +58,9 @@ invite.post("/", async (c) => {
   return c.json({ link }, 201);
 });
 
+// Standalone "shareable link" invites only — invites tied to a waiting-list
+// entry are represented by that person's row in /people instead, so listing
+// them here too would double-count.
 invite.get("/", async (c) => {
   if (!requireAdmin(c)) return c.json({ error: "僅管理員" }, 403);
   const { results } = await c.env.DB.prepare(
@@ -66,6 +69,7 @@ invite.get("/", async (c) => {
                  WHEN i.expires_at <= datetime('now') THEN 'expired'
                  ELSE 'active' END AS status
      FROM invites i LEFT JOIN users u ON u.id = i.used_by
+     WHERE i.id NOT IN (SELECT invite_id FROM waitlist WHERE invite_id IS NOT NULL)
      ORDER BY i.id DESC`
   ).all();
   return c.json(results);
@@ -99,12 +103,29 @@ invite.post("/test-email", async (c) => {
   }
 });
 
-invite.get("/waitlist", async (c) => {
+// Unified people list: every email-identified person in one view, each with a
+// single derived lifecycle status. Members (a row in `users`) are 'active';
+// waiting-list emails not yet members are 'waiting' or 'invited'. This is the
+// merge of the old "候補名單" and member views into one management surface.
+invite.get("/people", async (c) => {
   if (!requireAdmin(c)) return c.json({ error: "僅管理員" }, 403);
   const { results } = await c.env.DB.prepare(
-    `SELECT w.id, w.email, w.note, w.created_at, w.status, w.invited_at,
-            EXISTS(SELECT 1 FROM users u WHERE u.email = w.email) AS is_member
-     FROM waitlist w ORDER BY w.status = 'invited', w.id DESC`
+    // The union must be wrapped: SQLite forbids an ORDER BY *expression* over a
+    // compound (UNION) select's columns, so we sort the union from the outside.
+    `SELECT * FROM (
+       SELECT 'active' AS status, u.email AS email, u.name AS name, NULL AS note,
+              u.created_at AS created_at, NULL AS invited_at,
+              NULL AS waitlist_id, u.id AS user_id, u.is_admin AS is_admin
+         FROM users u
+       UNION ALL
+       SELECT CASE WHEN w.status = 'invited' THEN 'invited' ELSE 'waiting' END AS status,
+              w.email, NULL AS name, w.note, w.created_at, w.invited_at,
+              w.id AS waitlist_id, NULL AS user_id, 0 AS is_admin
+         FROM waitlist w
+        WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.email = w.email)
+     )
+     ORDER BY CASE status WHEN 'waiting' THEN 0 WHEN 'invited' THEN 1 ELSE 2 END,
+              created_at DESC`
   ).all();
   return c.json(results);
 });
@@ -140,6 +161,30 @@ invite.post("/waitlist/:id/invite", async (c) => {
     .run();
 
   return c.json({ ok: true, link, emailed, email_error: emailError });
+});
+
+// Undo an invite: revoke the (unused) invite link and drop the person back to
+// 'waiting'. If they already redeemed it they're a member and won't show as
+// 'invited', so this only ever touches still-pending invites.
+invite.post("/waitlist/:id/revoke", async (c) => {
+  if (!requireAdmin(c)) return c.json({ error: "僅管理員" }, 403);
+  const entry = await c.env.DB.prepare("SELECT id, invite_id FROM waitlist WHERE id = ?")
+    .bind(c.req.param("id"))
+    .first<{ id: number; invite_id: number | null }>();
+  if (!entry) return c.json({ error: "找不到這筆候補" }, 404);
+  // Clear the reference BEFORE deleting the invite — waitlist.invite_id is an FK
+  // into invites(id), so deleting the parent first fails the constraint.
+  await c.env.DB.prepare(
+    "UPDATE waitlist SET status = 'pending', invited_at = NULL, invite_id = NULL WHERE id = ?"
+  )
+    .bind(entry.id)
+    .run();
+  if (entry.invite_id) {
+    await c.env.DB.prepare("DELETE FROM invites WHERE id = ? AND used_at IS NULL")
+      .bind(entry.invite_id)
+      .run();
+  }
+  return c.json({ ok: true });
 });
 
 invite.delete("/waitlist/:id", async (c) => {

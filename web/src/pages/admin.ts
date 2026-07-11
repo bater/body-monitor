@@ -9,30 +9,118 @@ type Invite = {
   status: "active" | "used" | "expired";
 };
 
-type WaitlistEntry = {
-  id: number;
+type Person = {
   email: string;
+  name: string | null;
   note: string | null;
+  status: "waiting" | "invited" | "active";
   created_at: string;
-  status: "pending" | "invited";
   invited_at: string | null;
-  is_member: number;
+  waitlist_id: number | null;
+  user_id: number | null;
+  is_admin: number;
 };
 
-function waitlistCard(): HTMLElement {
+// Status badge shown next to each person's email.
+function statusBadge(p: Person): HTMLElement {
+  if (p.status === "active") {
+    return h(
+      "span",
+      { class: "small", style: "color:var(--good)" },
+      "已加入",
+      p.is_admin ? h("span", { class: "muted" }, "・管理員") : ""
+    );
+  }
+  if (p.status === "invited") {
+    return h("span", { class: "small muted" }, `已邀請 ${p.invited_at?.slice(0, 10) ?? ""}`);
+  }
+  return h("span", { class: "small", style: "color:var(--warn,var(--ink-3))" }, "候補中");
+}
+
+function peopleCard(): HTMLElement {
   const listBox = h("div");
   const linkBox = h("div");
 
   async function refresh() {
-    const rows = await api.get<WaitlistEntry[]>("/api/invite/waitlist");
+    const rows = await api.get<Person[]>("/api/invite/people");
     listBox.replaceChildren(
       rows.length === 0
-        ? h("div", { class: "empty" }, "目前沒有候補")
+        ? h("div", { class: "empty" }, "目前沒有使用者")
         : h(
             "div",
             {},
-            ...rows.map((w) =>
-              h(
+            ...rows.map((p) => {
+              const actions: (HTMLElement | null)[] = [];
+              if (p.status === "waiting") {
+                actions.push(
+                  h(
+                    "button",
+                    {
+                      class: "btn small primary",
+                      onclick: async (e: Event) => {
+                        const btn = e.currentTarget as HTMLButtonElement;
+                        btn.disabled = true;
+                        btn.textContent = "寄送中…";
+                        try {
+                          const res = await api.post<{
+                            link: string;
+                            emailed: boolean;
+                            email_error: string | null;
+                          }>(`/api/invite/waitlist/${p.waitlist_id}/invite`, {});
+                          if (res.emailed) {
+                            toast(`已寄邀請給 ${p.email}`);
+                          } else {
+                            toast(res.email_error ? "寄信失敗，可手動複製連結" : "已建立邀請（未設定寄信，請複製連結）");
+                            showLink(p.email, res.link);
+                          }
+                          void refresh();
+                        } catch (err) {
+                          toast(err instanceof ApiError ? err.message : "邀請失敗");
+                          btn.disabled = false;
+                          btn.textContent = "邀請";
+                        }
+                      },
+                    },
+                    "邀請"
+                  ),
+                  h(
+                    "button",
+                    {
+                      class: "icon-btn",
+                      "aria-label": "移除",
+                      onclick: async () => {
+                        if (!confirm(`從名單移除 ${p.email}？`)) return;
+                        await api.del(`/api/invite/waitlist/${p.waitlist_id}`);
+                        void refresh();
+                      },
+                    },
+                    "✕"
+                  )
+                );
+              } else if (p.status === "invited") {
+                actions.push(
+                  h(
+                    "button",
+                    {
+                      class: "btn small",
+                      onclick: async (e: Event) => {
+                        const btn = e.currentTarget as HTMLButtonElement;
+                        if (!confirm(`撤銷 ${p.email} 的邀請？將退回候補。`)) return;
+                        btn.disabled = true;
+                        try {
+                          await api.post(`/api/invite/waitlist/${p.waitlist_id}/revoke`, {});
+                          void refresh();
+                        } catch (err) {
+                          toast(err instanceof ApiError ? err.message : "撤銷失敗");
+                          btn.disabled = false;
+                        }
+                      },
+                    },
+                    "撤銷"
+                  )
+                );
+              }
+              return h(
                 "div",
                 { class: "entry" },
                 h(
@@ -41,62 +129,15 @@ function waitlistCard(): HTMLElement {
                   h(
                     "span",
                     { class: "grow", style: "flex:1;min-width:0;word-break:break-all" },
-                    w.email,
-                    w.is_member
-                      ? h("span", { class: "small", style: "color:var(--good)" }, "　已是會員")
-                      : w.status === "invited"
-                        ? h("span", { class: "small muted" }, `　已邀請 ${w.invited_at?.slice(0, 10) ?? ""}`)
-                        : null
+                    p.email,
+                    "　",
+                    statusBadge(p)
                   ),
-                  w.status === "pending" && !w.is_member
-                    ? h(
-                        "button",
-                        {
-                          class: "btn small primary",
-                          onclick: async (e: Event) => {
-                            const btn = e.currentTarget as HTMLButtonElement;
-                            btn.disabled = true;
-                            btn.textContent = "寄送中…";
-                            try {
-                              const res = await api.post<{
-                                link: string;
-                                emailed: boolean;
-                                email_error: string | null;
-                              }>(`/api/invite/waitlist/${w.id}/invite`, {});
-                              if (res.emailed) {
-                                toast(`已寄邀請給 ${w.email}`);
-                              } else {
-                                toast(res.email_error ? `寄信失敗，可手動複製連結` : "已建立邀請（未設定寄信，請複製連結）");
-                                showLink(w.email, res.link);
-                              }
-                              void refresh();
-                            } catch (err) {
-                              toast(err instanceof ApiError ? err.message : "邀請失敗");
-                              btn.disabled = false;
-                              btn.textContent = "邀請";
-                            }
-                          },
-                        },
-                        "邀請"
-                      )
-                    : null,
-                  h(
-                    "button",
-                    {
-                      class: "icon-btn",
-                      "aria-label": "移除",
-                      onclick: async () => {
-                        if (!confirm(`從候補名單移除 ${w.email}？`)) return;
-                        await api.del(`/api/invite/waitlist/${w.id}`);
-                        void refresh();
-                      },
-                    },
-                    "✕"
-                  )
+                  ...actions
                 ),
-                w.note ? h("div", { class: "small muted", style: "margin-top:2px" }, `「${w.note}」`) : null
-              )
-            )
+                p.note ? h("div", { class: "small muted", style: "margin-top:2px" }, `「${p.note}」`) : null
+              );
+            })
           )
     );
   }
@@ -151,12 +192,13 @@ function waitlistCard(): HTMLElement {
   const card = h(
     "div",
     { class: "card" },
-    h("div", { class: "eyebrow" }, "候補名單 WAITLIST"),
+    h("div", { class: "eyebrow" }, "使用者管理 USERS"),
+    h("p", { class: "muted small", style: "margin:0 0 8px" }, "候補中 → 已邀請 → 已加入"),
     testBtn,
     linkBox,
     listBox
   );
-  void refresh().catch(() => toast("候補名單載入失敗"));
+  void refresh().catch(() => toast("使用者名單載入失敗"));
   return card;
 }
 
@@ -210,7 +252,12 @@ function inviteCard(): HTMLElement {
   const card = h(
     "div",
     { class: "card" },
-    h("div", { class: "eyebrow" }, "邀請管理"),
+    h("div", { class: "eyebrow" }, "通用邀請連結"),
+    h(
+      "p",
+      { class: "muted small", style: "margin:0 0 8px" },
+      "不綁定特定 email 的分享連結；候補者的邀請請在上方使用者管理處理。"
+    ),
     h(
       "button",
       {
@@ -276,7 +323,7 @@ export function renderAdmin(page: HTMLElement) {
         h("div", { class: "eyebrow" }, "管理後台 ADMIN"),
         h("p", { class: "muted small" }, "此頁僅管理員可見。")
       ),
-      waitlistCard(),
+      peopleCard(),
       inviteCard(),
       h(
         "div",

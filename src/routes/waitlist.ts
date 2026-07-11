@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { AppContext } from "../env";
+import { sendWaitlistNotice } from "../email";
 
 // Public (Access-bypassed) waiting-list signup. No auth: reachable by logged-out
 // visitors from the /welcome landing page. authMiddleware whitelists this path.
@@ -28,6 +29,15 @@ waitlist.post("/", async (c) => {
     .run();
 
   const already = res.meta.changes === 0 || Boolean(existingUser);
+
+  // Genuinely new signup → email a reminder to the admin, best-effort so a slow
+  // or failing SMTP never blocks (or fails) the visitor's response.
+  if (!already) {
+    c.executionCtx.waitUntil(
+      sendWaitlistNotice(c.env, { email: clean, note: trimmedNote }).catch(() => {})
+    );
+  }
+
   return c.json({ ok: true, already }, 201);
 });
 
