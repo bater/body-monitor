@@ -20,6 +20,7 @@ export function renderInBody(page: HTMLElement) {
   const formBox = h("div");
   const coachBox = h("div");
   const tableBox = h("div", { class: "card" });
+  let historyOpen = false;
 
   const fileInput = h("input", {
     type: "file",
@@ -158,8 +159,9 @@ export function renderInBody(page: HTMLElement) {
     );
 
     const srcLabel = { photo: "照片", manual: "手動", import: "匯入" } as const;
-    tableBox.replaceChildren(
-      h("div", { class: "eyebrow" }, "歷史紀錄"),
+    const listWrap = h(
+      "div",
+      { style: historyOpen ? "" : "display:none" },
       records.length === 0
         ? h("div", { class: "empty" }, "還沒有 InBody 紀錄")
         : h(
@@ -222,6 +224,27 @@ export function renderInBody(page: HTMLElement) {
             )
           )
           )
+    );
+    const arrow = h("span", { style: "font-size:11px" }, historyOpen ? "▲" : "▼");
+    tableBox.replaceChildren(
+      h(
+        "div",
+        {
+          class: "eyebrow",
+          style: "cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none",
+          role: "button",
+          "aria-expanded": String(historyOpen),
+          onclick: (e: Event) => {
+            historyOpen = !historyOpen;
+            listWrap.style.display = historyOpen ? "" : "none";
+            arrow.textContent = historyOpen ? "▲" : "▼";
+            (e.currentTarget as HTMLElement).setAttribute("aria-expanded", String(historyOpen));
+          },
+        },
+        h("span", {}, `歷史紀錄（${records.length}）`),
+        arrow
+      ),
+      listWrap
     );
   }
 
