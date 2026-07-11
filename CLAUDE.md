@@ -50,11 +50,13 @@ if the feature is user-visible.
   early-returns for `POST /api/waitlist`; `/welcome` is in wrangler
   `run_worker_first` so the Worker (not the SPA fallback) serves it. Admin
   waitlist management lives in the `invite` router (already admin-gated).
-- **Invite email** (`src/email.ts`): Mailgun HTTP API (plain `fetch` + Basic
-  auth, no SMTP/deps). Sending is a no-op when `MAILGUN_API_KEY`/
-  `MAILGUN_DOMAIN` are unset and best-effort otherwise — a failure still records
-  the invite and the admin UI falls back to a copyable link. EU accounts set
-  `MAILGUN_API_BASE`.
+- **Invite email** (`src/email.ts`): raw SMTP to `smtp.gmail.com:465` over
+  `cloudflare:sockets` (implicit TLS, `AUTH LOGIN` with a Gmail App Password;
+  port 25 is blocked, 465 isn't). No deps. Chosen over Mailgun because the
+  Mailgun free tier is sandbox-only (delivers just to pre-authorized
+  recipients) without a custom domain; Gmail SMTP delivers to anyone. Sending
+  is a no-op when `GMAIL_APP_PASSWORD` is unset and best-effort otherwise — a
+  failure still records the invite and the admin UI falls back to a copyable link.
 - **Web Push**: subscriptions per device in `push_subscriptions`; cron
   `30 1,5,11 * * *` UTC = 09:30/13:30/19:30 Taipei meal checks. Push is a
   silent no-op when `VAPID_PRIVATE_KEY` is unset. iOS requires the installed

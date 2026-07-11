@@ -70,20 +70,21 @@ Applications, add an application (higher precedence than the main one) covering
 policy (Include: Everyone). The app itself stays protected. Share `/welcome` as
 the public link; the app entry at `/` still requires login.
 
-### Invite emails (Mailgun)
+### Invite emails (Gmail SMTP)
 
-Admins send invites from the 候補名單 straight to the applicant's inbox via
-[Mailgun](https://www.mailgun.com/) (free tier: 100 mails/day):
+Admins send invites from the 候補名單 straight to the applicant's inbox via a
+personal Gmail account — no custom domain needed, and (unlike a Mailgun
+sandbox) delivers to any recipient:
 
-- `MAILGUN_DOMAIN` (the sending domain) is in `wrangler.jsonc` `vars`
-- `npx wrangler secret put MAILGUN_API_KEY` (the private API key)
-- EU accounts also set `MAILGUN_API_BASE=https://api.eu.mailgun.net`; the From
-  address defaults to `Body Buddy <postmaster@DOMAIN>` (override with `MAILGUN_FROM`)
+- `GMAIL_USER` (the sending address) is in `wrangler.jsonc` `vars`
+- generate a [Gmail App Password](https://myaccount.google.com/apppasswords)
+  (needs 2-Step Verification), then `npx wrangler secret put GMAIL_APP_PASSWORD`
 
-Sending is a safe no-op until both the domain and key exist — the invite is
-still created and the admin UI shows a copyable link to send by hand. Delivery
-is a plain HTTPS call to the Mailgun API (no SMTP), so nothing extra is needed
-on Workers.
+Sending is a safe no-op until the secret exists — the invite is still created
+and the admin UI shows a copyable link to send by hand. Delivery uses
+`smtp.gmail.com:465` over Cloudflare TCP sockets (port 25 is blocked; 465 is
+not), so no third-party email service is required. Gmail's ~500 recipients/day
+limit is plenty at family/friends scale.
 
 ### Web Push (meal reminders)
 
@@ -119,4 +120,4 @@ Pushes to `main` typecheck, test, apply D1 migrations, and deploy via
 
 Worker secrets survive deploys and are set once via `wrangler secret put`:
 `MISTRAL_API_KEY` / `OPENROUTER_API_KEY` (AI), `VAPID_PRIVATE_KEY` (push), and
-`MAILGUN_API_KEY` (invite emails).
+`GMAIL_APP_PASSWORD` (invite emails).

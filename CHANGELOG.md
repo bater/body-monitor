@@ -12,9 +12,9 @@ When shipping a main feature: add an entry here, bump `version` in
   no Access-protected assets
 - Admin 候補名單 in `#/admin`: review signups, send an invite with one tap,
   or remove an entry
-- Invite emails via the Mailgun API (free tier, 100/day) — degrades to a
-  copyable invite link when `MAILGUN_API_KEY`/`MAILGUN_DOMAIN` are unset or a
-  send fails
+- Invite emails via personal Gmail SMTP (smtp.gmail.com:465 over Cloudflare
+  TCP sockets, App Password auth) — delivers to any recipient, degrades to a
+  copyable invite link when `GMAIL_APP_PASSWORD` is unset or a send fails
 - **Requires** a Cloudflare Access **Bypass** policy for `/welcome` and
   `POST /api/waitlist` so logged-out visitors can reach them (see README)
 

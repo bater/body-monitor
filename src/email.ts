@@ -1,7 +1,43 @@
+import { connect } from "cloudflare:sockets";
 import type { Env } from "./env";
 
-// Invite emails via the Mailgun HTTP API (free tier: 100 mails/day). A plain
-// fetch with HTTP Basic auth — no SMTP sockets, no third-party deps.
+// Minimal SMTP-over-implicit-TLS client for Gmail (smtp.gmail.com:465).
+// Workers block outbound port 25 but allow 465/587; we use 465 so TLS is on
+// from the first byte and we skip the STARTTLS dance. Auth is AUTH LOGIN with a
+// Gmail App Password (needs 2FA on the account). No third-party deps.
+
+const CRLF = "\r\n";
+
+class SmtpError extends Error {}
+
+async function readReply(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  decoder: TextDecoder,
+  buf: { text: string }
+): Promise<{ code: number; lines: string[] }> {
+  // An SMTP reply is one or more lines; continuation lines are "NNN-...", the
+  // final line is "NNN ...". Keep reading until a final line appears.
+  while (true) {
+    const finalLine = firstFinalLine(buf.text);
+    if (finalLine) {
+      const lines = buf.text.split(CRLF).filter(Boolean);
+      const code = Number(finalLine.slice(0, 3));
+      buf.text = "";
+      return { code, lines };
+    }
+    const { value, done } = await reader.read();
+    if (done) throw new SmtpError("SMTP connection closed unexpectedly");
+    buf.text += decoder.decode(value, { stream: true });
+  }
+}
+
+function firstFinalLine(text: string): string | null {
+  for (const line of text.split(CRLF)) {
+    // "250 OK" is final; "250-..." is a continuation
+    if (/^\d{3} /.test(line)) return line;
+  }
+  return null;
+}
 
 export type EmailMessage = {
   to: string;
@@ -9,39 +45,86 @@ export type EmailMessage = {
   text: string;
 };
 
-function mailgunBase(env: Env): string {
-  // EU accounts must set MAILGUN_API_BASE=https://api.eu.mailgun.net
-  return (env.MAILGUN_API_BASE || "https://api.mailgun.net").replace(/\/+$/, "");
-}
-
-/** Send one email through Mailgun. Throws on any non-2xx response. */
+/** Send one email through Gmail SMTP. Throws on any non-2xx SMTP step. */
 export async function sendMail(env: Env, msg: EmailMessage): Promise<void> {
-  const key = env.MAILGUN_API_KEY;
-  const domain = env.MAILGUN_DOMAIN;
-  if (!key || !domain) throw new Error("Mailgun 未設定");
+  const user = env.GMAIL_USER;
+  const pass = env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) throw new SmtpError("Gmail SMTP 未設定");
 
-  const from = env.MAILGUN_FROM || `Body Buddy <postmaster@${domain}>`;
-  const form = new URLSearchParams({
-    from,
-    to: msg.to,
-    subject: msg.subject,
-    text: msg.text,
-  });
+  const socket = connect(
+    { hostname: "smtp.gmail.com", port: 465 },
+    { secureTransport: "on", allowHalfOpen: false }
+  );
+  const writer = socket.writable.getWriter();
+  const reader = socket.readable.getReader();
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const buf = { text: "" };
 
-  const res = await fetch(`${mailgunBase(env)}/v3/${domain}/messages`, {
-    method: "POST",
-    headers: { Authorization: "Basic " + btoa(`api:${key}`) },
-    body: form,
-  });
-  if (!res.ok) {
-    const detail = (await res.text()).slice(0, 200);
-    throw new Error(`Mailgun ${res.status}：${detail || res.statusText}`);
+  const send = (line: string) => writer.write(encoder.encode(line + CRLF));
+  const expect = async (want: number, ctx: string) => {
+    const { code, lines } = await readReply(reader, decoder, buf);
+    if (code !== want) throw new SmtpError(`SMTP ${ctx}：${lines.join(" ") || code}`);
+    return { code, lines };
+  };
+
+  try {
+    await expect(220, "greeting");
+    await send("EHLO body-buddy");
+    await expect(250, "EHLO");
+    await send("AUTH LOGIN");
+    await expect(334, "AUTH LOGIN");
+    await send(btoa(user));
+    await expect(334, "username");
+    await send(btoa(pass));
+    await expect(235, "認證失敗（請確認 App 密碼）");
+    await send(`MAIL FROM:<${user}>`);
+    await expect(250, "MAIL FROM");
+    await send(`RCPT TO:<${msg.to}>`);
+    await expect(250, "RCPT TO");
+    await send("DATA");
+    await expect(354, "DATA");
+    await writer.write(encoder.encode(buildMessage(user, msg)));
+    await expect(250, "訊息傳送");
+    await send("QUIT");
+  } finally {
+    try {
+      await writer.close();
+    } catch {
+      // ignore close races
+    }
   }
 }
 
-/** Compose + send the invitation email. Returns false when Mailgun isn't configured. */
+function buildMessage(from: string, msg: EmailMessage): string {
+  // Dot-stuff the body (lines starting with "." get an extra dot) and terminate
+  // with <CRLF>.<CRLF> per RFC 5321.
+  const body = msg.text
+    .replace(/\r?\n/g, CRLF)
+    .split(CRLF)
+    .map((l) => (l.startsWith(".") ? "." + l : l))
+    .join(CRLF);
+  const headers = [
+    `From: Body Buddy <${from}>`,
+    `To: <${msg.to}>`,
+    `Subject: ${encodeSubject(msg.subject)}`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: 8bit",
+  ].join(CRLF);
+  return headers + CRLF + CRLF + body + CRLF + "." + CRLF;
+}
+
+// RFC 2047 encoded-word so a non-ASCII (中文) subject survives transit.
+function encodeSubject(subject: string): string {
+  if (/^[\x20-\x7e]*$/.test(subject)) return subject;
+  const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(subject)));
+  return `=?UTF-8?B?${b64}?=`;
+}
+
+/** Compose + send the invitation email. Returns false when SMTP isn't configured. */
 export async function sendInviteEmail(env: Env, to: string, link: string): Promise<boolean> {
-  if (!env.MAILGUN_API_KEY || !env.MAILGUN_DOMAIN) return false;
+  if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) return false;
   const text = [
     "你好，",
     "",

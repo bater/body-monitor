@@ -16,11 +16,9 @@ export type Env = {
   VAPID_PUBLIC_KEY?: string; // vars — public by design
   VAPID_PRIVATE_KEY?: string; // secret
   VAPID_SUBJECT?: string; // mailto: contact for push services
-  // Mailgun for invitation emails (sending is a no-op until key + domain are set)
-  MAILGUN_API_KEY?: string; // secret
-  MAILGUN_DOMAIN?: string; // sending domain, e.g. mg.example.com (var)
-  MAILGUN_FROM?: string; // optional From override (default: Body Buddy <postmaster@DOMAIN>)
-  MAILGUN_API_BASE?: string; // optional; EU accounts set https://api.eu.mailgun.net
+  // Gmail SMTP for invitation emails (sending is a no-op until both are set)
+  GMAIL_USER?: string; // the sending Gmail address (var)
+  GMAIL_APP_PASSWORD?: string; // 16-char Gmail App Password (secret)
 };
 
 export type AppContext = {

@@ -9,7 +9,7 @@ export const VERSION_HISTORY: VersionEntry[] = [
   {
     version: "0.0.8",
     date: "2026-07-11",
-    highlights: ["公開登陸頁與等候名單", "後台可審核候補並一鍵寄出邀請（Mailgun）"],
+    highlights: ["公開登陸頁與等候名單", "後台可審核候補並一鍵寄出邀請（Gmail）"],
   },
   {
     version: "0.0.7",
