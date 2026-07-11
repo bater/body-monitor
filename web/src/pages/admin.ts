@@ -137,7 +137,7 @@ function waitlistCard(): HTMLElement {
             {}
           );
           if (res.ok) toast(`已寄測試信到 ${res.to}`);
-          else toast(res.error ? `寄信失敗：${res.error}` : "寄信失敗（未設定 Mailgun）");
+          else toast(res.error ? `寄信失敗：${res.error}` : "寄信失敗（未設定 Gmail）");
         } catch (err) {
           toast(err instanceof ApiError ? err.message : "寄信失敗");
         } finally {

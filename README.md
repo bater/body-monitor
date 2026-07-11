@@ -4,7 +4,7 @@ Personal health tracker for family & friends (invite-only): daily 蛋白質/food
 intake, workout records (weight × reps × sets), and InBody body-composition
 trends. 繁體中文 mobile-first PWA, runs entirely on the Cloudflare free tier.
 
-## Features (v0.0.7)
+## Features (v0.0.8)
 
 Seven core features — no install, no ads, your data stays yours:
 

@@ -82,8 +82,8 @@ invite.delete("/:id", async (c) => {
 
 // ---- waiting list (admin) ----
 
-// Deliverability check: emails the admin's own address (the safe recipient for a
-// Mailgun sandbox domain). Never throws — returns the error text for the UI.
+// Deliverability check: emails the admin's own address. Never throws — returns
+// the error text for the UI.
 invite.post("/test-email", async (c) => {
   if (!requireAdmin(c)) return c.json({ error: "僅管理員" }, 403);
   const to = c.get("userEmail");
@@ -91,7 +91,7 @@ invite.post("/test-email", async (c) => {
     await sendMail(c.env, {
       to,
       subject: "Body Buddy 測試信",
-      text: "這是一封來自 Body Buddy 的測試信。\n若你收到它，代表 Mailgun 邀請信設定成功 🎉",
+      text: "這是一封來自 Body Buddy 的測試信。\n若你收到它，代表邀請信設定成功 🎉",
     });
     return c.json({ ok: true, to });
   } catch (e) {
