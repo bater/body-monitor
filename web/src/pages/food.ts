@@ -57,11 +57,13 @@ export function renderFood(page: HTMLElement) {
   const listBox = h("div", { class: "card" });
   const trendBox = h("div", { style: "display:flex;flex-direction:column;gap:12px" });
 
-  // recording input (textarea + AI/manual), hidden until "新增飲食紀錄" is tapped
+  // recording input (date + textarea + AI/manual), hidden until "新增飲食紀錄" is tapped
   const recordBox = h(
     "div",
     { class: "card", style: "display:none" },
-    h("div", { class: "eyebrow" }, "記錄飲食"),
+    h("div", { class: "eyebrow" }, "日期"),
+    dateInput,
+    h("div", { class: "eyebrow", style: "margin-top:12px" }, "記錄飲食"),
     textarea,
     h("div", { class: "btn-row", style: "margin-top:10px" }, parseBtn, manualBtn)
   );
@@ -329,7 +331,7 @@ export function renderFood(page: HTMLElement) {
   page.replaceChildren(
     trendBox,
     listBox,
-    h("div", { class: "btn-row" }, addBtn, dateInput),
+    h("div", { class: "btn-row" }, addBtn),
     recordBox,
     editorBox,
     coachBox
