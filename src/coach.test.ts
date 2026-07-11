@@ -1,14 +1,18 @@
 import { describe, it, expect } from "vitest";
 import {
   buildCoachUserContent,
+  COACH_SYSTEM_PROMPTS,
+  COACH_TONES,
   foodCoach,
   inbodyCoach,
+  normalizeTone,
   workoutCoach,
   type FoodCoachInput,
   type FoodCtx,
   type InBodyCoachInput,
   type WorkoutCoachInput,
 } from "./coach";
+import { reminderContent } from "./push";
 
 function food(over: Partial<FoodCoachInput> = {}): FoodCoachInput {
   return {
@@ -157,6 +161,49 @@ describe("inbodyCoach", () => {
     const c = inbodyCoach({ weightKg: 74.2, smmKg: 32.5, pbf: 19.5, prev });
     expect(c.message).toContain("體重 -0.8 kg");
     expect(c.message).toContain("骨骼肌 -0.3 kg");
+  });
+});
+
+describe("reminderContent follows the coach tone", () => {
+  it("streak body varies by tone and always carries the numbers", () => {
+    const s = { streakDays: 12, logged: true, needG: 30 };
+    const bodies = COACH_TONES.map((t) => reminderContent(t, "lunch", s).body);
+    expect(new Set(bodies).size).toBe(COACH_TONES.length);
+    for (const b of bodies) {
+      expect(b).toContain("30");
+      expect(b).toContain("12");
+    }
+  });
+
+  it("no-log-yet uses the per-meal fallback; titles differ by tone", () => {
+    const s = { streakDays: 0, logged: false, needG: 90 };
+    expect(reminderContent("friendly", "breakfast", s).body).toContain("第一餐");
+    expect(reminderContent("strict", "dinner", s).title).toContain("最後機會");
+    expect(reminderContent("professional", "lunch", s).title).toBe("午餐記錄提醒");
+  });
+
+  it("logged but below min uses the remaining template", () => {
+    const s = { streakDays: 0, logged: true, needG: 25 };
+    for (const t of COACH_TONES) expect(reminderContent(t, "dinner", s).body).toContain("25");
+  });
+});
+
+describe("coach tones", () => {
+  it("every tone has a distinct prompt that keeps the shared output contract", () => {
+    const prompts = COACH_TONES.map((t) => COACH_SYSTEM_PROMPTS[t]);
+    expect(new Set(prompts).size).toBe(COACH_TONES.length);
+    for (const p of prompts) {
+      expect(p).toContain('{"message":"..."}');
+      expect(p).toContain("繁體中文");
+      expect(p).toContain("禁止醫療診斷");
+    }
+  });
+
+  it("normalizeTone falls back to friendly on unknown values", () => {
+    expect(normalizeTone("strict")).toBe("strict");
+    expect(normalizeTone("professional")).toBe("professional");
+    expect(normalizeTone("bogus")).toBe("friendly");
+    expect(normalizeTone(undefined)).toBe("friendly");
   });
 });
 

@@ -316,18 +316,37 @@ export async function inbodyContext(
 
 // ---------- Tier-1 LLM ----------
 
-// Frozen prompt-cache prefix: byte-identical across all users and calls.
-// Never interpolate anything into it — all variance goes in the user message.
-export const COACH_SYSTEM_PROMPT = `你是「Body Buddy」App 的健身教練，語氣像熟識的朋友：具體、簡短、鼓勵但不浮誇、不說教。
-使用者剛新增一筆紀錄，你會收到一個 JSON，描述這次的重要事件（event）與他的個人數據。
+export const COACH_TONES = ["friendly", "strict", "professional"] as const;
+export type CoachTone = (typeof COACH_TONES)[number];
+
+export function normalizeTone(v: string | undefined | null): CoachTone {
+  return (COACH_TONES as readonly string[]).includes(v ?? "") ? (v as CoachTone) : "friendly";
+}
+
+const COACH_SHARED_RULES = `使用者剛新增一筆紀錄，你會收到一個 JSON，描述這次的重要事件（event）與他的個人數據。
 輸出規則：
 - 只回傳 JSON：{"message":"..."}，不要其他文字。
-- message 用繁體中文（台灣用語），1~2 句、最多 60 字，最多 1 個 emoji。
-- 必須引用 JSON 中的具體數字（公斤、克、天數、百分比、變化量）。
-- 禁止醫療診斷或就醫建議；數據退步時先肯定持續記錄，再給一個具體的小行動。
+- message 用繁體中文（台灣用語），1~2 句、最多 60 字。
+- 必須引用 JSON 中的具體數字（公斤、克、天數、百分比、變化量）；只使用 JSON 中出現的數值，不要自行推算新數字（例如百分比）。
+- 禁止醫療診斷或就醫建議。
 欄位說明：event=事件代碼；streak_days=連續達標天數；protein.today_g/target_g/min_g=今日蛋白質與目標；
 protein.avg7_g=近7天平均；protein.target_days_7=近7天達標天數；workout.prev_max_kg=該動作先前最重；
 workout.prev_volume=上次總訓練量；inbody.prev=上次量測值。`;
+
+// Frozen prompt-cache prefixes: one byte-identical constant per tone, shared
+// across all users and calls. Never interpolate per-request values into these
+// — all variance goes in the user message.
+export const COACH_SYSTEM_PROMPTS: Record<CoachTone, string> = {
+  friendly: `你是「Body Buddy」App 的健身教練，語氣像熟識的朋友：具體、簡短、鼓勵但不浮誇、不說教。最多 1 個 emoji。
+數據退步時先肯定持續記錄，再給一個具體的小行動。
+${COACH_SHARED_RULES}`,
+  strict: `你是「Body Buddy」App 的魔鬼教練：嚴格、直接、標準高，不說客套話。不用 emoji。
+達標了也要指出離下一步還差多少、提醒不要鬆懈；數據退步時直接點出問題並下一個明確指令。
+${COACH_SHARED_RULES}`,
+  professional: `你是「Body Buddy」App 的專業教練，具運動科學與營養學背景：客觀、冷靜、數據導向。不用 emoji。
+以數據解讀為主，說明這次數字代表的趨勢，並給一個有依據的具體建議。
+${COACH_SHARED_RULES}`,
+};
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -390,11 +409,16 @@ export function buildCoachUserContent(ctx: CoachCtx, event: CoachEvent): string 
   });
 }
 
-export async function generateAiCoach(env: Env, ctx: CoachCtx, event: CoachEvent): Promise<string> {
+export async function generateAiCoach(
+  env: Env,
+  ctx: CoachCtx,
+  event: CoachEvent,
+  tone: CoachTone = "friendly"
+): Promise<string> {
   const result = await chatJson<{ message?: unknown }>(
     env,
     [{ type: "text", text: buildCoachUserContent(ctx, event) }],
-    { system: COACH_SYSTEM_PROMPT, maxTokens: 200, temperature: 0.6 }
+    { system: COACH_SYSTEM_PROMPTS[tone], maxTokens: 200, temperature: 0.6 }
   );
   if (typeof result.message !== "string" || !result.message.trim()) {
     throw new AiError("AI 回應缺少 message", 502);

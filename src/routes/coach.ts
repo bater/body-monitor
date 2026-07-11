@@ -6,6 +6,7 @@ import {
   foodContext,
   generateAiCoach,
   inbodyContext,
+  normalizeTone,
   runCoach,
   workoutContext,
   type CoachCtx,
@@ -26,11 +27,13 @@ coach.post("/", async (c) => {
   const db = c.env.DB;
   const uid = c.get("userId");
 
-  const enabled = await db
-    .prepare("SELECT value FROM user_settings WHERE user_id = ? AND key = 'coach_enabled'")
+  const { results } = await db
+    .prepare("SELECT key, value FROM user_settings WHERE user_id = ? AND key IN ('coach_enabled','coach_tone')")
     .bind(uid)
-    .first<{ value: string }>();
-  if (enabled?.value === "0") return none();
+    .all<{ key: string; value: string }>();
+  const settings = Object.fromEntries(results.map((r) => [r.key, r.value]));
+  if (settings.coach_enabled === "0") return none();
+  const tone = normalizeTone(settings.coach_tone);
 
   const memo = await db
     .prepare("SELECT message FROM coach_feedback WHERE user_id = ? AND kind = ? AND record_id = ?")
@@ -98,7 +101,7 @@ coach.post("/", async (c) => {
   if (!resolveProvider(c.env)) return none();
 
   try {
-    const message = await generateAiCoach(c.env, ctx, tier0.event);
+    const message = await generateAiCoach(c.env, ctx, tier0.event, tone);
     await db
       .prepare(
         `INSERT OR IGNORE INTO coach_feedback (user_id, kind, record_id, date, tier, event, message)

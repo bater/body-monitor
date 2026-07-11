@@ -248,16 +248,48 @@ export function renderSettings(page: HTMLElement) {
           },
         });
         box.checked = settings.coach_enabled !== "0";
+
+        const TONES: { value: string; label: string; hint: string }[] = [
+          { value: "friendly", label: "友善", hint: "朋友般鼓勵" },
+          { value: "strict", label: "嚴格", hint: "魔鬼教練" },
+          { value: "professional", label: "專業", hint: "數據導向" },
+        ];
+        const current = TONES.some((t) => t.value === settings.coach_tone) ? settings.coach_tone : "friendly";
+        const radios = TONES.map((t) => {
+          const radio = h("input", {
+            type: "radio",
+            name: "coach_tone",
+            value: t.value,
+            onchange: async () => {
+              try {
+                await api.put("/api/settings", { coach_tone: t.value });
+                toast(`教練風格：${t.label}`);
+              } catch {
+                toast("儲存失敗");
+              }
+            },
+          });
+          radio.checked = t.value === current;
+          return h(
+            "label",
+            { class: "small", style: "display:flex;align-items:center;gap:5px" },
+            radio,
+            `${t.label}（${t.hint}）`
+          );
+        });
+
         return h(
           "div",
           { class: "card" },
           h("div", { class: "eyebrow" }, "AI 教練"),
           h(
             "label",
-            { class: "small", style: "display:flex;align-items:center;gap:8px" },
+            { class: "small", style: "display:flex;align-items:center;gap:8px;margin-bottom:10px" },
             box,
             "新增紀錄後給回饋（達標、破紀錄等重要時刻才呼叫 AI）"
-          )
+          ),
+          h("div", { style: "display:flex;flex-wrap:wrap;gap:6px 14px" }, ...radios),
+          h("p", { class: "muted small", style: "margin-top:8px" }, "教練風格同時套用於回饋訊息與用餐提醒通知。")
         );
       })(),
       h(
