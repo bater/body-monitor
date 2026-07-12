@@ -197,25 +197,34 @@ export function renderWorkout(page: HTMLElement) {
     }
     const gap = daysBetween(last, todayStr());
     const when = gap <= 0 ? "今天已訓練 💪" : gap === 1 ? "昨天" : `${gap} 天前`;
-    const info = h(
-      "div",
-      { class: "card" },
-      h("div", { class: "eyebrow" }, "上次訓練"),
-      h("div", { class: "row" }, h("span", { class: "grow" }, when), h("span", { class: "muted small" }, last))
-    );
     // Escalation level by idle days: 10+ → 2, 5–9 → 1, 3–4 → 0, <3 → none.
     const level = gap >= 10 ? 2 : gap >= 5 ? 1 : gap >= 3 ? 0 : -1;
-    let nudge: HTMLElement | null = null;
-    if (level >= 0) {
-      const tone = NUDGES[settings.coach_tone] ? settings.coach_tone : "friendly";
-      nudge = h(
+    // One card holds the last-workout summary and — once idle ≥3 days — the
+    // coach nudge, joined by a hairline. The accent left-border turns on only
+    // when nudging, so the block reads calm normally and urgent when overdue.
+    const nudge =
+      level >= 0
+        ? h(
+            "div",
+            { class: "rest-nudge" },
+            h("span", { class: "ico" }, "💬"),
+            h("span", {}, NUDGES[NUDGES[settings.coach_tone] ? settings.coach_tone : "friendly"](gap)[level])
+          )
+        : null;
+    restBox.replaceChildren(
+      h(
         "div",
-        { class: "card coach" },
-        h("div", { class: "eyebrow" }, "💬 教練"),
-        h("div", {}, NUDGES[tone](gap)[level])
-      );
-    }
-    restBox.replaceChildren(info, ...(nudge ? [nudge] : []));
+        { class: nudge ? "card coach" : "card" },
+        h("div", { class: "eyebrow" }, "上次訓練"),
+        h(
+          "div",
+          { class: "rest-head" },
+          h("span", { class: "rest-when" }, when),
+          h("span", { class: "rest-date" }, last)
+        ),
+        ...(nudge ? [nudge] : [])
+      )
+    );
   }
 
   const progBox = h("div");
