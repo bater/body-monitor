@@ -1,4 +1,5 @@
 import type { Env } from "../env";
+import { lookupFood } from "../data/food-db";
 
 export class AiError extends Error {
   constructor(message: string, public status: number) {
@@ -80,28 +81,77 @@ export async function chatJson<T>(
 
 // ---------- Food parsing ----------
 
-export type FoodItem = { name: string; qty: string; protein_g: number; kcal: number };
+// `source` marks whether protein_g/kcal came from the official Taiwan food DB
+// ("db", grounded) or the model's own estimate ("ai"). `grams`/`db_name` are kept
+// for transparency and to let edits re-ground later.
+export type FoodItem = {
+  name: string;
+  qty: string;
+  protein_g: number;
+  kcal: number;
+  grams?: number;
+  source?: "db" | "ai";
+  db_name?: string;
+};
+
+// Raw per-item shape the model returns (before DB grounding).
+type RawFoodItem = {
+  name?: unknown;
+  qty?: unknown;
+  grams?: unknown;
+  db_key?: unknown;
+  protein_g?: unknown;
+  kcal?: unknown;
+};
 
 export async function parseFoodText(env: Env, text: string): Promise<{ items: FoodItem[] }> {
-  const prompt = `你是營養師。使用者記錄了他吃的東西，請拆解成個別食物項目，並估計每項的蛋白質(g)與熱量(kcal)。
-- 份量未寫明時，用台灣常見的一般份量估計。
-- 名稱用繁體中文，保留使用者原本的叫法。
-- 估計要務實，不要高估。
+  const prompt = `你是營養師。使用者記錄了他吃的東西，請拆解成個別食物項目。
+對每一項，估計：
+- grams：這一份「可食部分」的總重量（公克，數字）。份量未寫明時用台灣常見一般份量估計（例如 1 碗白飯≈150g、1 顆雞蛋≈50g、1 杯豆漿≈250g）。
+- db_key：這項食物最通用的台灣食材名稱，用來查營養資料庫。要用單純的食材詞、繁體中文、不含形容詞/品牌/烹調法（例如「雞胸肉」「白飯」「豆漿」「鮭魚」；沒有對應時給空字串）。
+- protein_g、kcal：整份的蛋白質(g)與熱量(kcal)估計，作為查不到資料庫時的備援。估計要務實，不要高估。
+- name：顯示名稱，用繁體中文，保留使用者原本的叫法。
 
 只回傳 JSON，格式如下，不要有其他文字：
-{"items":[{"name":"食物名稱","qty":"份量描述，例如 200g、2顆、1碗","protein_g":數字,"kcal":數字}]}
+{"items":[{"name":"顯示名稱","qty":"份量描述，例如 200g、2顆、1碗","grams":數字,"db_key":"食材名稱","protein_g":數字,"kcal":數字}]}
 
 使用者輸入：
 ${text}`;
-  const result = await chatJson<{ items?: FoodItem[] }>(env, [{ type: "text", text: prompt }]);
+  const result = await chatJson<{ items?: RawFoodItem[] }>(env, [{ type: "text", text: prompt }]);
   if (!Array.isArray(result.items)) throw new AiError("AI 回應缺少 items", 502);
+  return { items: result.items.map(groundItem) };
+}
+
+// Ground one model item against the Taiwan food DB: on a confident name match,
+// recompute protein/kcal from the official per-100g value × estimated grams;
+// otherwise fall back to the model's own numbers.
+function groundItem(raw: RawFoodItem): FoodItem {
+  const name = String(raw.name ?? "");
+  const qty = String(raw.qty ?? "");
+  const grams = Number(raw.grams);
+  const aiProtein = Number(raw.protein_g) || 0;
+  const aiKcal = Number(raw.kcal) || 0;
+  const dbKey = String(raw.db_key ?? "").trim();
+
+  const match = Number.isFinite(grams) && grams > 0 ? lookupFood(dbKey || name) : null;
+  if (match) {
+    return {
+      name,
+      qty,
+      grams,
+      protein_g: Math.round(((match.protein100 * grams) / 100) * 10) / 10,
+      kcal: Math.round((match.kcal100 * grams) / 100),
+      source: "db",
+      db_name: match.name,
+    };
+  }
   return {
-    items: result.items.map((i) => ({
-      name: String(i.name ?? ""),
-      qty: String(i.qty ?? ""),
-      protein_g: Number(i.protein_g) || 0,
-      kcal: Number(i.kcal) || 0,
-    })),
+    name,
+    qty,
+    grams: Number.isFinite(grams) && grams > 0 ? grams : undefined,
+    protein_g: aiProtein,
+    kcal: aiKcal,
+    source: "ai",
   };
 }
 

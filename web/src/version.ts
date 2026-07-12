@@ -1,11 +1,19 @@
 // Keep in sync with package.json version and CHANGELOG.md (see CHANGELOG.md
 // header for the bump-on-milestone process). This file drives the 關於 page.
-export const APP_VERSION = "0.0.9";
+export const APP_VERSION = "0.0.10";
 
 export type VersionEntry = { version: string; date: string; highlights: string[] };
 
 // newest first
 export const VERSION_HISTORY: VersionEntry[] = [
+  {
+    version: "0.0.10",
+    date: "2026-07-12",
+    highlights: [
+      "AI 飲食解析改用衛福部食品營養成分資料庫校正：熱量與蛋白質以官方每100克數值×份量計算，更準確",
+      "每項標示來源（資料庫／AI 估）",
+    ],
+  },
   {
     version: "0.0.9",
     date: "2026-07-11",

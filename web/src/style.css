@@ -235,6 +235,15 @@ label.field > span { display: block; font-size: 12.5px; color: var(--ink-2); mar
   margin-bottom: 6px;
 }
 .item-row input { padding: 7px 8px; font-size: 13.5px; }
+.name-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.src-badge {
+  align-self: flex-start;
+  font-size: 10px; line-height: 1.4;
+  padding: 0 5px; border-radius: 6px;
+  white-space: nowrap;
+}
+.src-badge.db { color: var(--good, #1a7f4b); background: color-mix(in srgb, var(--good, #1a7f4b) 14%, transparent); }
+.src-badge.ai { color: var(--ink-3); background: color-mix(in srgb, var(--ink-3) 12%, transparent); }
 .item-head {
   font-size: 11px; color: var(--ink-3);
   display: grid;

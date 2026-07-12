@@ -48,7 +48,15 @@ export const api = {
 };
 
 export type CoachFeedback = { message: string; notable: boolean; event: string | null } | null;
-export type FoodItem = { name: string; qty: string; protein_g: number; kcal: number };
+export type FoodItem = {
+  name: string;
+  qty: string;
+  protein_g: number;
+  kcal: number;
+  grams?: number;
+  source?: "db" | "ai";
+  db_name?: string;
+};
 export type FoodLog = {
   id: number;
   date: string;

@@ -170,10 +170,28 @@ export function renderFood(page: HTMLElement) {
             });
             return input;
           };
+          const badge = item.source
+            ? h(
+                "span",
+                {
+                  class: `src-badge ${item.source}`,
+                  title:
+                    item.source === "db"
+                      ? `營養來自食品營養成分資料庫${item.db_name ? `：${item.db_name}` : ""}`
+                      : "AI 估計值，資料庫查無此項",
+                },
+                item.source === "db" ? "資料庫" : "AI 估"
+              )
+            : null;
           return h(
             "div",
             { class: "item-row" },
-            bind("name", h("input", { type: "text", value: item.name })),
+            h(
+              "div",
+              { class: "name-cell" },
+              bind("name", h("input", { type: "text", value: item.name })),
+              badge
+            ),
             bind("qty", h("input", { type: "text", value: item.qty })),
             bind("protein_g", h("input", { type: "number", step: "0.1", value: item.protein_g }), true),
             bind("kcal", h("input", { type: "number", step: "1", value: item.kcal }), true),
